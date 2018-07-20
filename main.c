@@ -60,8 +60,8 @@ float cube_colors[] = {
 
 int main (int argc, char **argv)
 {
-  int width = 960;
-  int height = 540;
+  int width = 1280;
+  int height = 720;
   unsigned int* buf;
   float *zbuf;
   window_t window;
@@ -83,7 +83,17 @@ int main (int argc, char **argv)
   gfx_matrix_mode(GFX_PROJECTION_MATRIX);
   gfx_perspective(70, (float)width / (float)height, .1, 1000.0);
 
+  gfx_matrix_mode(GFX_VIEW_MATRIX);
+  gfx_identity();
+
   while (!window.quit) {
+    gfx_matrix_mode(GFX_VIEW_MATRIX);
+
+    if (window.keys.left)  gfx_translate(1.0, 0, 0);
+    if (window.keys.right) gfx_translate(-1.0, 0, 0);
+    if (window.keys.up)    gfx_translate(0, 0, -1.0);
+    if (window.keys.down)  gfx_translate(0, 0, 1.0);
+
     gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, cube_colors, 12);
 
     gfx_matrix_mode(GFX_MODEL_MATRIX);
@@ -91,14 +101,10 @@ int main (int argc, char **argv)
     gfx_translate(0, 0, 20);
     gfx_rotate(0, 0, 1, rotate_amt);
     gfx_rotate(0, 1, 0, rotate_amt);
-    gfx_scale(5);
+    gfx_scale(10);
     gfx_translate(-0.5, -0.5, -0.5);
 
-    gfx_matrix_mode(GFX_VIEW_MATRIX);
-    gfx_identity();
-
     gfx_draw_arrays(0, -1);
-
     gfx_draw_text_8x8(ascii, "Hello there!", 12, 0, 0);
 
     window_update(&window, buf);

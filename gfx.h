@@ -28,6 +28,7 @@ typedef struct _gfxv4 gfxv4;
 typedef struct _gfxm4 gfxm4;
 
 typedef struct _gfxvert gfxvert;
+typedef struct _gfxpoly gfxpoly;
 
 struct _gfxv2 { float x, y; };
 struct _gfxv3 { float x, y, z; };
@@ -43,6 +44,12 @@ struct _gfxm4 {
 struct _gfxvert {
   gfxv4 camera_space;
   gfxv2 screen_space;
+  unsigned int clip_flags;
+};
+
+struct _gfxpoly {
+  int v1, v2, v3;
+  float r, g, b;
 };
 
 struct _gfx {
@@ -68,7 +75,7 @@ struct _gfx {
   gfxm4* active;
 
   gfxvert vertex_pipe[GFX_MAX_VERTICES];
-  gfxv4 face_pipe[GFX_MAX_FACES];
+  gfxpoly visible[GFX_MAX_FACES];
 };
 
 int gfx_init(void);
@@ -292,6 +299,18 @@ static void gfx_v4_copy (gfxv4 *a, gfxv4 *b)
   a->w = b->w;
 }
 
+static void gfx_clip_flags (int id)
+{
+  gfxv2 *screen = &GFX.vertex_pipe[id].screen_space;
+  gfxv4 *camera = &GFX.vertex_pipe[id].camera_space;
+
+  GFX.vertex_pipe[id].clip_flags = (camera->z < 0.1)
+    | ((screen->x < 0) << 1)
+    | ((screen->x >= GFX.target_width) << 2)
+    | ((screen->y < 0) << 3)
+    | ((screen->y >= GFX.target_height) << 4);
+}
+
 void gfx_clear ()
 {
   int i = 0, l = GFX.target_width * GFX.target_height;
@@ -427,10 +446,12 @@ void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
   fystep = gfx_fixed16(ystep);
 
   do {
-    /* can this be made faster without being ridiculous? */
-    int idx = (y1f>>GFX_FRACBITS) * width + (x1f>>GFX_FRACBITS);
+    int y = y1f>>GFX_FRACBITS;
+    int x = x1f>>GFX_FRACBITS;
 
-    GFX.target[idx] = color;
+    /* temporary until clipping */
+    if (y >= 0 && y < GFX.target_height && x > 0 && x < width)
+      GFX.target[y * width + x] = color;
 
     x1f += fxstep;
     y1f += fystep;
@@ -439,15 +460,18 @@ void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
 
 void gfx_draw_arrays (int start, int end)
 {
+  gfxvert *pv1, *pv2, *pv3;
   gfxv2 *v1, *v2, *v3;
   gfxm4 mv, mvp;
   gfxv4 tmp;
-  int i, vidx, vsize, isize, csize;
+  int i, vidx, pidx, vsize, isize;
   gfxvert *pipe = &GFX.vertex_pipe;
 
   vsize = GFX.vertex_count * 3;
   isize = end == -1 ? GFX.index_count * 3 : (end + 1) * 3;
+
   vidx = 0;
+  pidx = 0;
 
   gfx_m4_mult(&mv, &GFX.view, &GFX.model);
   gfx_m4_mult(&mvp, &GFX.projection, &mv);
@@ -455,13 +479,63 @@ void gfx_draw_arrays (int start, int end)
   for (i = 0; i < vsize; i+=3) {
     gfx_v4_init(&tmp, GFX.vertices[i], GFX.vertices[i+1], GFX.vertices[i+2], 1);
     gfx_v4_mult(&pipe[vidx].camera_space, &tmp, &mvp);
-    gfx_project_to_screen(&pipe[vidx].screen_space, &pipe[vidx++].camera_space);
+    gfx_project_to_screen(&pipe[vidx].screen_space, &pipe[vidx].camera_space);
+    gfx_clip_flags(vidx++);
   }
 
   for (i = start; i < isize; i+=3) {
-    v1 = &GFX.vertex_pipe[GFX.indices[i+0]].screen_space;
-    v2 = &GFX.vertex_pipe[GFX.indices[i+1]].screen_space;
-    v3 = &GFX.vertex_pipe[GFX.indices[i+2]].screen_space;
+    int i1 = GFX.indices[i+0];
+    int i2 = GFX.indices[i+1];
+    int i3 = GFX.indices[i+2];
+
+    pv1 = &GFX.vertex_pipe[i1];
+    pv2 = &GFX.vertex_pipe[i2];
+    pv3 = &GFX.vertex_pipe[i3];
+
+    /* all out */
+    if (pv1->clip_flags & pv2->clip_flags & pv3->clip_flags) {
+      continue;
+    }
+
+    /* zclip */
+    /* screen clip */
+    /* use vidx to store new vertices at the end of the vertex pipe */
+
+    if (pv1->clip_flags & 1) {
+      if (pv2->clip_flags & 1) {
+        /* clip pv3->pv1 and pv3->pv2 against z */
+      } else {
+        /* clip pv3->pv1 and pv2->pv1 against z */
+      }
+    } else if (pv2->clip_flags & 1) {
+      if (pv3->clip_flags & 1) {
+        /* clip pv1->pv2 and pv1->pv3 against z */
+      } else {
+        /* clip pv3->pv2 and pv1->pv2 against z */
+      }
+    } else if (pv3->clip_flags & 1) {
+      if (pv1->clip_flags & 1) {
+        /* clip pv2->pv1 and pv2->pv3 against z */
+      } else {
+        /* clip pv1->pv3 and pv2->pv3 against z */
+      }
+    }
+
+    GFX.visible[pidx].v1 = i1;
+    GFX.visible[pidx].v2 = i2;
+    GFX.visible[pidx].v3 = i3;
+
+    GFX.visible[pidx].r = GFX.colors[i+0];
+    GFX.visible[pidx].g = GFX.colors[i+1];
+    GFX.visible[pidx].b = GFX.colors[i+2];
+
+    pidx++;
+  }
+
+  for (i = 0; i < pidx; i++) {
+    v1 = &GFX.vertex_pipe[GFX.visible[i].v1].screen_space;
+    v2 = &GFX.vertex_pipe[GFX.visible[i].v2].screen_space;
+    v3 = &GFX.vertex_pipe[GFX.visible[i].v3].screen_space;
 
     gfx_draw_line(v1->x, v1->y, v2->x, v2->y, 0xffffffff);
     gfx_draw_line(v2->x, v2->y, v3->x, v3->y, 0xffffffff);
