@@ -19,8 +19,6 @@ typedef unsigned int u32;
 #define GFX_PROJECTION_MATRIX 2
 #define GFX_VIEW_MATRIX 3
 
-#define GFX_NEAR_PLANE 10
-
 #define GFX_FRACBITS 16
 #define gfx_fixed16(x) ((u32)(x * 65535))
 
@@ -68,6 +66,8 @@ struct _gfx {
   int vertex_count;
   int index_count;
   int color_count;
+
+  float near_plane;
 
   gfxm4 model;
   gfxm4 view;
@@ -201,6 +201,8 @@ static void gfx_m4_perspective (gfxm4 *m, float fov, float aspect, float n, floa
   m->_22 = 1;
   m->_32 = 1;
   m->_33 = 0;
+
+  GFX.near_plane = n;
 }
 
 static void gfx_m4_rotation (gfxm4 *m, float x, float y, float z, float a)
@@ -306,7 +308,7 @@ static void gfx_clip_flags (int id)
   gfxv2 *screen = &GFX.vertex_pipe[id].screen_space;
   gfxv4 *camera = &GFX.vertex_pipe[id].camera_space;
 
-  GFX.vertex_pipe[id].clip_flags = (int)(camera->z < GFX_NEAR_PLANE)
+  GFX.vertex_pipe[id].clip_flags = (int)(camera->z < GFX.near_plane)
     | ((int)(screen->x < 0) << 1)
     | ((int)(screen->x >= GFX.target_width) << 2)
     | ((int)(screen->y < 0) << 3)
@@ -528,23 +530,22 @@ void gfx_draw_arrays (int start, int end)
       continue;
     }
 
-    #define zclip(p1, p2, p3, i1, i2, i3) { \
-      gfxv4 *pv1, *pv2, *pv3; \
-      pv1 = &pv[p1]->camera_space; \
-      pv2 = &pv[p2]->camera_space; \
-      pv3 = &pv[p3]->camera_space; \
-      if (pv[p1]->clip_flags & 1) { \
-        if (pv[p2]->clip_flags & 1) { \
-          gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX_NEAR_PLANE); \
-          gfx_lerp(vp2, pv3, pv2, fabs(pv2->z - pv3->z), pv3->z - GFX_NEAR_PLANE); \
+    #define _zclip(p1, p2, p3, i1, i2, i3) { \
+      gfxv4 *pv1 = &p1->camera_space; \
+      gfxv4 *pv2 = &p2->camera_space; \
+      gfxv4 *pv3 = &p3->camera_space; \
+      if (p1->clip_flags & 1) { \
+        if (p2->clip_flags & 1) { \
+          gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
+          gfx_lerp(vp2, pv3, pv2, fabs(pv2->z - pv3->z), pv3->z - GFX.near_plane); \
           gfx_add_visible_indexed(pidx++, i3, v1, v2, i); \
-        } else if (pv[p3]->clip_flags & 1) { \
-          gfx_lerp(vp1, pv2, pv3, fabs(pv3->z - pv2->z), pv2->z - GFX_NEAR_PLANE); \
-          gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX_NEAR_PLANE); \
+        } else if (p3->clip_flags & 1) { \
+          gfx_lerp(vp1, pv2, pv3, fabs(pv3->z - pv2->z), pv2->z - GFX.near_plane); \
+          gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
           gfx_add_visible_indexed(pidx++, i2, v1, v2, i); \
         } else { \
-          gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX_NEAR_PLANE); \
-          gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX_NEAR_PLANE); \
+          gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
+          gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
           gfx_add_visible_indexed(pidx++, i3, v1, v2, i); \
           gfx_add_visible_indexed(pidx++, i2, v1, v2, i); \
         } \
@@ -552,31 +553,35 @@ void gfx_draw_arrays (int start, int end)
     }
 
     /* zclip */
-    /* screen clip */
     /* use vidx to store new vertices at the end of the vertex pipe */
     if ((pv[0]->clip_flags | pv[1]->clip_flags | pv[2]->clip_flags) & 1) {
       int v1 = vidx++;
       int v2 = vidx++;
       gfxv4 *vp1, *vp2;
 
+      /* at least one vertex is behind the z-plane, so we're going to need two new vertices */
       vp1 = &pipe[v1].camera_space;
       vp2 = &pipe[v2].camera_space;
 
-      zclip(0, 1, 2, i1, i2, i3);
-      zclip(1, 2, 0, i2, i3, i1);
-      zclip(2, 0, 1, i3, i1, i2);
+      _zclip(pv[0], pv[1], pv[2], i1, i2, i3);
+      _zclip(pv[1], pv[2], pv[0], i2, i3, i1);
+      _zclip(pv[2], pv[0], pv[1], i3, i1, i2);
 
       gfx_project_to_screen(&pipe[v1].screen_space, &pipe[v1].camera_space);
       gfx_project_to_screen(&pipe[v2].screen_space, &pipe[v2].camera_space);
     } else {
       gfx_add_visible_indexed(pidx++, i1, i2, i3, i);
     }
+
+    #undef _zclip
   }
 
   for (i = 0; i < pidx; i++) {
     v1 = &GFX.vertex_pipe[GFX.visible[i].v1].screen_space;
     v2 = &GFX.vertex_pipe[GFX.visible[i].v2].screen_space;
     v3 = &GFX.vertex_pipe[GFX.visible[i].v3].screen_space;
+
+    /* screen clip */
 
     gfx_draw_line(v1->x, v1->y, v2->x, v2->y, 0xffffffff);
     gfx_draw_line(v2->x, v2->y, v3->x, v3->y, 0xffffffff);

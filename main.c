@@ -81,7 +81,7 @@ int main (int argc, char **argv)
   gfx_bind_depth_buffer(zbuf);
 
   gfx_matrix_mode(GFX_PROJECTION_MATRIX);
-  gfx_perspective(70, (float)width / (float)height, .1, 1000.0);
+  gfx_perspective(70, (float)width / (float)height, 1, 1000.0);
 
   gfx_matrix_mode(GFX_VIEW_MATRIX);
   gfx_identity();
