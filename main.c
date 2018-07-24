@@ -98,6 +98,7 @@ int main (int argc, char **argv)
 
     gfx_matrix_mode(GFX_MODEL_MATRIX);
     gfx_identity();
+    
     gfx_translate(0, 0, 20);
     gfx_rotate(0, 0, 1, rotate_amt);
     gfx_rotate(0, 1, 0, rotate_amt);
