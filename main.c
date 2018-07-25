@@ -12,7 +12,6 @@ options:
   GFX_USE_MALLOC
 */
 
-#define GFX_DEBUG
 #define GFX_IMPLEMENT
 
 #include "gfx.h"
@@ -67,9 +66,10 @@ int main (int argc, char **argv)
   float fov = 70;
   window_t window;
   int is_paused = 0;
-
-  float cam_y_rotate = 0;
+  int mode = 0;
+  int frame, start;
   float rotate_amt = 0;
+  char debug_string[50];
 
   buf = malloc((width * height) * sizeof(unsigned int));
   zbuf = malloc((width * height) * sizeof(float));
@@ -91,13 +91,18 @@ int main (int argc, char **argv)
 
     gfx_matrix_mode(GFX_VIEW_MATRIX);
 
+    start = SDL_GetTicks();
+
     if (window.keys.a) gfx_translate(1.0, 0, 0);
     if (window.keys.d) gfx_translate(-1.0, 0, 0);
     if (window.keys.w) gfx_translate(0, 0, -1.0);
     if (window.keys.s) gfx_translate(0, 0, 1.0);
+
     if (window.keys.left) fov -= 0.5;
     if (window.keys.right) fov += 0.5;
     if (window.keys.p) is_paused = is_paused == 0 ? 1 : 0;
+    if (window.keys._1) mode = 0;
+    if (window.keys._2) mode = 1;
 
     gfx_matrix_mode(GFX_MODEL_MATRIX);
     gfx_identity();
@@ -109,8 +114,13 @@ int main (int argc, char **argv)
 
     gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, cube_colors, 12);
 
+    gfx_draw_mode(mode);
     gfx_draw_arrays(0, -1);
-    gfx_draw_text_8x8(ascii, "Hello there!", 12, 0, 0);
+
+    frame = SDL_GetTicks() - start;
+
+    sprintf(debug_string, "frame: %dms", frame);
+    gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
 
     window_update(&window, buf);
 

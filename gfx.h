@@ -19,6 +19,9 @@ typedef unsigned int u32;
 #define GFX_PROJECTION_MATRIX 2
 #define GFX_VIEW_MATRIX 3
 
+#define GFX_FLAT_FILL_MODE 0
+#define GFX_WIREFRAME_MODE 1
+
 #define GFX_FRACBITS 16
 #define gfx_fixed16(x) ((u32)(x * 65535))
 
@@ -29,6 +32,7 @@ typedef struct _gfxm4 gfxm4;
 
 typedef struct _gfxvert gfxvert;
 typedef struct _gfxpoly gfxpoly;
+typedef struct _gfxedge gfxedge;
 
 struct _gfxv2 { float x, y; };
 struct _gfxv3 { float x, y, z; };
@@ -45,6 +49,13 @@ struct _gfxvert {
   gfxv4 camera_space;
   gfxv2 screen_space;
   unsigned int clip_flags;
+};
+
+struct _gfxedge {
+  float x;
+  float x_step;
+  int y_start;
+  int y_end;
 };
 
 struct _gfxpoly {
@@ -68,6 +79,7 @@ struct _gfx {
   int color_count;
 
   float near_plane;
+  int draw_mode;
 
   gfxm4 model;
   gfxm4 view;
@@ -92,6 +104,7 @@ void gfx_draw_arrays(int, int);
 void gfx_draw_text_8x8(char[][8], const char *, int, int, int);
 void gfx_draw_line(float, float, float, float, u32);
 
+void gfx_draw_mode(int);
 void gfx_matrix_mode(int);
 void gfx_rotate(float, float, float, float);
 void gfx_translate(float, float, float);
@@ -260,6 +273,11 @@ static void gfx_v4_crossp (gfxv4 *out, gfxv4 *a, gfxv4 *b)
   out->z = (a->x * b->y) - (a->y * b->x);
 }
 
+static float gfx_v2_area (gfxv2* v1, gfxv2* v2, gfxv2* v3)
+{
+  return ((v2->x - v1->x) * (v3->y - v1->y) - (v3->x - v1->x) * (v2->y - v1->y));
+}
+
 static float gfx_v4_dotp (gfxv4 *v1, gfxv4 *v2)
 {
   return v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
@@ -339,6 +357,8 @@ int gfx_init ()
   gfx_m4_ident(&GFX.model);
   gfx_m4_ident(&GFX.view);
   gfx_m4_ident(&GFX.projection);
+
+  GFX.draw_mode = GFX_FLAT_FILL_MODE;
 
   return 1;
 }
@@ -460,6 +480,100 @@ void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
   } while (++count < max);
 }
 
+static void gfx_draw_span (float x1, float x2, int y, unsigned int color)
+{
+  int sx1, sx2;
+  unsigned int *dst, *max, offs;
+
+  sx1 = (int)ceil(x1);
+  sx2 = (int)ceil(x2);
+
+  /* @todo: temporary until screen clipping */
+  if (sx1 > GFX.target_width - 1 || sx2 < 0 || y < 0 || y > GFX.target_height - 1) return;
+  if (sx1 < 0) sx1 = 0;
+  if (sx2 > GFX.target_width - 1) sx2 = GFX.target_width - 1;
+
+  offs = GFX.target_width * y;
+  dst = GFX.target + offs + sx1;
+  max = GFX.target + offs + sx2;
+
+  while (dst < max) *dst++ = color;
+}
+
+static void gfx_init_edge (gfxedge* e, gfxv2* v1, gfxv2* v2)
+{
+  float yd = v2->y - v1->y;
+  float xd = v2->x - v1->x;
+  float prestep, fxstep;
+
+  e->y_start = (int)ceil(v1->y);
+  e->y_end = (int)ceil(v2->y);
+  prestep = ((float)e->y_start - v1->y);
+  fxstep = xd / yd;
+  e->x = v1->x + prestep * fxstep;
+  e->x_step = fxstep;
+}
+
+
+static void gfx_scan_edges(gfxedge *e1, gfxedge *e2, int left, unsigned int color)
+{
+  gfxedge *tmp;
+  int y1, y2, i;
+
+  y1 = e2->y_start;
+  y2 = e2->y_end;
+
+  if (left) { tmp = e1; e1 = e2; e2 = tmp; }
+
+  for (i = y1; i < y2; i++) {
+    gfx_draw_span(e1->x, e2->x, i, color);
+    
+    e1->x += e1->x_step;
+    e2->x += e2->x_step;
+  }
+}
+
+void gfx_draw_triangle_flat (gfxpoly *tri)
+{
+  gfxv2 *v1, *v2, *v3, *tmp;
+  gfxedge e1, e2, e3;
+  float area;
+  unsigned int color;
+  int r, g, b;
+
+  r = (int)(tri->r * 255) << 16;
+  g = (int)(tri->g * 255) <<  8;
+  b = (int)(tri->b * 255) <<  0;
+
+  v1 = &GFX.vertex_pipe[tri->v1].screen_space;
+  v2 = &GFX.vertex_pipe[tri->v2].screen_space;
+  v3 = &GFX.vertex_pipe[tri->v3].screen_space;
+
+  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; }
+  if (v3->y < v2->y) { tmp = v2; v2 = v3; v3 = tmp; }
+  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; }
+
+  area = gfx_v2_area(v1, v3, v2);
+
+  gfx_init_edge(&e1, v1, v3);
+  gfx_init_edge(&e2, v1, v2);
+  gfx_init_edge(&e3, v2, v3);
+
+  if (area == 0) {
+    return;
+  }
+
+  color = 255 | r | g | b;
+
+  gfx_scan_edges(&e1, &e2, area > 0, color);
+  gfx_scan_edges(&e1, &e3, area > 0, color);
+}
+
+void gfx_draw_mode (int mode)
+{
+  GFX.draw_mode = mode;
+}
+
 void gfx_draw_arrays (int start, int end)
 {
   gfxvert *pv[3];
@@ -489,7 +603,6 @@ void gfx_draw_arrays (int start, int end)
     int i1 = GFX.indices[i+0];
     int i2 = GFX.indices[i+1];
     int i3 = GFX.indices[i+2];
-    int j;
 
     pv[0] = &GFX.vertex_pipe[i1];
     pv[1] = &GFX.vertex_pipe[i2];
@@ -499,6 +612,8 @@ void gfx_draw_arrays (int start, int end)
     if (pv[0]->clip_flags & pv[1]->clip_flags & pv[2]->clip_flags) {
       continue;
     }
+
+    /* @todo: calculate color from lights here */
 
 #define _zclip(p1, p2, p3, i1, i2, i3) { \
   gfxv4 *pv1 = &p1->camera_space; \
@@ -544,16 +659,23 @@ void gfx_draw_arrays (int start, int end)
 #undef _zclip
   }
 
-  for (i = 0; i < pidx; i++) {
-    v1 = &GFX.vertex_pipe[GFX.visible[i].v1].screen_space;
-    v2 = &GFX.vertex_pipe[GFX.visible[i].v2].screen_space;
-    v3 = &GFX.vertex_pipe[GFX.visible[i].v3].screen_space;
+  if (GFX.draw_mode == GFX_WIREFRAME_MODE) {
+    for (i = 0; i < pidx; i++) {
+      v1 = &GFX.vertex_pipe[GFX.visible[i].v1].screen_space;
+      v2 = &GFX.vertex_pipe[GFX.visible[i].v2].screen_space;
+      v3 = &GFX.vertex_pipe[GFX.visible[i].v3].screen_space;
 
-    /* screen clip */
+      /* @todo: screen clip */
 
-    gfx_draw_line(v1->x, v1->y, v2->x, v2->y, 0xffffffff);
-    gfx_draw_line(v2->x, v2->y, v3->x, v3->y, 0xffffffff);
-    gfx_draw_line(v3->x, v3->y, v1->x, v1->y, 0xffffffff);
+      gfx_draw_line(v1->x, v1->y, v2->x, v2->y, 0xffffffff);
+      gfx_draw_line(v2->x, v2->y, v3->x, v3->y, 0xffffffff);
+      gfx_draw_line(v3->x, v3->y, v1->x, v1->y, 0xffffffff);
+    }
+  } else if (GFX.draw_mode == GFX_FLAT_FILL_MODE) {
+    for (i = 0; i < pidx; i++) {
+      /* @todo: screen clip */
+      gfx_draw_triangle_flat(&GFX.visible[i]);
+    }
   }
 }
 
