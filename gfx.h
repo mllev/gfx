@@ -216,25 +216,10 @@ static void gfx_m4_rotation (gfxm4 *m, float x, float y, float z, float a)
   float yy = y * y, yz = y * z, zz = z * z;
   float xs = x * s, ys = y * s, zs = z * s;
 
-  m->_00 = xx * c1 + c;
-  m->_01 = xy * c1 - zs;
-  m->_02 = xz * c1 + ys;
-  m->_03 = 0;
-
-  m->_10 = xy * c1 + zs;
-  m->_11 = yy * c1 + c;
-  m->_12 = yz * c1 - xs;
-  m->_13 = 0;
-
-  m->_20 = xz * c1 - ys;
-  m->_21 = yz * c1 + xs;
-  m->_22 = zz * c1 + c;
-  m->_23 = 0;
-
-  m->_30 = 0;
-  m->_31 = 0;
-  m->_32 = 0;
-  m->_33 = 1;
+  m->_00 = xx * c1 + c;  m->_01 = xy * c1 - zs; m->_02 = xz * c1 + ys; m->_03 = 0;
+  m->_10 = xy * c1 + zs; m->_11 = yy * c1 + c;  m->_12 = yz * c1 - xs; m->_13 = 0;
+  m->_20 = xz * c1 - ys; m->_21 = yz * c1 + xs; m->_22 = zz * c1 + c;  m->_23 = 0;
+  m->_30 = 0;            m->_31 = 0;            m->_32 = 0;            m->_33 = 1;
 }
 
 static void gfx_m4_scale (gfxm4 *m, float x, float y, float z)
@@ -343,13 +328,6 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c)
   GFX.visible[i].b = GFX.colors[c+2];
 }
 
-void gfx_clear ()
-{
-  int i = 0, l = GFX.target_width * GFX.target_height;
-  for (; i < l; i++) GFX.target[i] = 0;
-  for (; i < l; i++) GFX.depth_buffer[i] = 0.0;
-}
-
 int gfx_init ()
 {
 #ifdef GFX_USE_MALLOC
@@ -363,6 +341,13 @@ int gfx_init ()
   gfx_m4_ident(&GFX.projection);
 
   return 1;
+}
+
+void gfx_clear ()
+{
+  int i = 0, l = GFX.target_width * GFX.target_height;
+  for (; i < l; i++) GFX.target[i] = 0;
+  for (; i < l; i++) GFX.depth_buffer[i] = 0.0;
 }
 
 unsigned int gfx_memory_requirements ()
@@ -448,9 +433,6 @@ void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
   int count = 0, max;
   int width = GFX.target_width;
 
-  u32 x1f, x2f, y1f, y2f;
-  u32 fxstep, fystep;
-
   float xdiff = x2 - x1;
   float ydiff = y2 - y1;
 
@@ -468,25 +450,13 @@ void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
     max = aydiff;
   }
 
-  x1f = gfx_fixed16(x1);
-  y1f = gfx_fixed16(y1);
-
-  x2f = gfx_fixed16(x2);
-  y2f = gfx_fixed16(y2);
-
-  fxstep = gfx_fixed16(xstep);
-  fystep = gfx_fixed16(ystep);
-
   do {
-    int y = y1f>>GFX_FRACBITS;
-    int x = x1f>>GFX_FRACBITS;
-
     /* temporary check until screen-space clipping */
-    if (y >= 0 && y < GFX.target_height && x > 0 && x < width)
-      GFX.target[y * width + x] = color;
+    if (y1 >= 0 && y1 < GFX.target_height && x1 > 0 && x1 < width)
+      GFX.target[(int)y1 * width + (int)x1] = color;
 
-    x1f += fxstep;
-    y1f += fystep;
+    x1 += xstep;
+    y1 += ystep;
   } while (++count < max);
 }
 
@@ -530,27 +500,25 @@ void gfx_draw_arrays (int start, int end)
       continue;
     }
 
-    #define _zclip(p1, p2, p3, i1, i2, i3) { \
-      gfxv4 *pv1 = &p1->camera_space; \
-      gfxv4 *pv2 = &p2->camera_space; \
-      gfxv4 *pv3 = &p3->camera_space; \
-      if (p1->clip_flags & 1) { \
-        if (p2->clip_flags & 1) { \
-          gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
-          gfx_lerp(vp2, pv3, pv2, fabs(pv2->z - pv3->z), pv3->z - GFX.near_plane); \
-          gfx_add_visible_indexed(pidx++, i3, v1, v2, i); \
-        } else if (p3->clip_flags & 1) { \
-          gfx_lerp(vp1, pv2, pv3, fabs(pv3->z - pv2->z), pv2->z - GFX.near_plane); \
-          gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
-          gfx_add_visible_indexed(pidx++, i2, v1, v2, i); \
-        } else { \
-          gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
-          gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
-          gfx_add_visible_indexed(pidx++, i3, v1, v2, i); \
-          gfx_add_visible_indexed(pidx++, i2, v1, v2, i); \
-        } \
-      } \
-    }
+#define _zclip(p1, p2, p3, i1, i2, i3) { \
+  gfxv4 *pv1 = &p1->camera_space; \
+  gfxv4 *pv2 = &p2->camera_space; \
+  gfxv4 *pv3 = &p3->camera_space; \
+  if (p1->clip_flags & p2->clip_flags & 1) { \
+    gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
+    gfx_lerp(vp2, pv3, pv2, fabs(pv2->z - pv3->z), pv3->z - GFX.near_plane); \
+    gfx_add_visible_indexed(pidx++, i3, v1, v2, i); \
+  } else if (p1->clip_flags & p3->clip_flags & 1) { \
+    gfx_lerp(vp1, pv2, pv3, fabs(pv3->z - pv2->z), pv2->z - GFX.near_plane); \
+    gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
+    gfx_add_visible_indexed(pidx++, i2, v1, v2, i); \
+  } else if (p1->clip_flags & 1) { \
+    gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
+    gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
+    gfx_add_visible_indexed(pidx++, i3, v2, v1, i); \
+    gfx_add_visible_indexed(pidx++, i3, i2, v2, i); \
+  } \
+}
 
     /* zclip */
     /* use vidx to store new vertices at the end of the vertex pipe */
@@ -573,7 +541,7 @@ void gfx_draw_arrays (int start, int end)
       gfx_add_visible_indexed(pidx++, i1, i2, i3, i);
     }
 
-    #undef _zclip
+#undef _zclip
   }
 
   for (i = 0; i < pidx; i++) {

@@ -64,7 +64,9 @@ int main (int argc, char **argv)
   int height = 720;
   unsigned int* buf;
   float *zbuf;
+  float fov = 70;
   window_t window;
+  int is_paused = 0;
 
   float cam_y_rotate = 0;
   float rotate_amt = 0;
@@ -80,30 +82,32 @@ int main (int argc, char **argv)
   gfx_bind_render_target(buf, width, height);
   gfx_bind_depth_buffer(zbuf);
 
-  gfx_matrix_mode(GFX_PROJECTION_MATRIX);
-  gfx_perspective(70, (float)width / (float)height, 1, 1000.0);
-
   gfx_matrix_mode(GFX_VIEW_MATRIX);
   gfx_identity();
 
   while (!window.quit) {
+    gfx_matrix_mode(GFX_PROJECTION_MATRIX);
+    gfx_perspective(fov, (float)width / (float)height, 1, 1000.0);
+
     gfx_matrix_mode(GFX_VIEW_MATRIX);
 
-    if (window.keys.left)  gfx_translate(1.0, 0, 0);
-    if (window.keys.right) gfx_translate(-1.0, 0, 0);
-    if (window.keys.up)    gfx_translate(0, 0, -1.0);
-    if (window.keys.down)  gfx_translate(0, 0, 1.0);
-
-    gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, cube_colors, 12);
+    if (window.keys.a) gfx_translate(1.0, 0, 0);
+    if (window.keys.d) gfx_translate(-1.0, 0, 0);
+    if (window.keys.w) gfx_translate(0, 0, -1.0);
+    if (window.keys.s) gfx_translate(0, 0, 1.0);
+    if (window.keys.left) fov -= 0.5;
+    if (window.keys.right) fov += 0.5;
+    if (window.keys.p) is_paused = is_paused == 0 ? 1 : 0;
 
     gfx_matrix_mode(GFX_MODEL_MATRIX);
     gfx_identity();
-    
     gfx_translate(0, 0, 20);
-    gfx_rotate(0, 0, 1, rotate_amt);
+    gfx_rotate(1, 0, 0, rotate_amt);
     gfx_rotate(0, 1, 0, rotate_amt);
     gfx_scale(10);
     gfx_translate(-0.5, -0.5, -0.5);
+
+    gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, cube_colors, 12);
 
     gfx_draw_arrays(0, -1);
     gfx_draw_text_8x8(ascii, "Hello there!", 12, 0, 0);
@@ -112,7 +116,8 @@ int main (int argc, char **argv)
 
     gfx_clear();
 
-    rotate_amt += 0.02;
+    if (!is_paused)
+      rotate_amt += 0.02;
   }
 
   window_close(&window);

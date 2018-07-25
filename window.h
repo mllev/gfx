@@ -1,6 +1,7 @@
 #ifndef _WINDOW_H
 #define _WINDOW_H
 
+#include <stdlib.h>
 #include <SDL2/SDL.h>
 
 typedef struct _window window_t;
@@ -13,7 +14,7 @@ void window_close(window_t*);
 
 struct _window {
   struct {
-    int a, w, s, d;
+    int a, w, s, d, p;
     int up, down, left, right;
     int _1, _2;
   } keys;
@@ -43,18 +44,13 @@ void window_open (window_t *w, const char *name, int width, int height)
 
   SDL_Init(SDL_INIT_VIDEO);
   
+  memset(w, 0, sizeof(window_t));
   w->window = SDL_CreateWindow(name, 10, 10, width, height, 0);
 
   SDL_SetWindowSize(w->window, 1280, (int)(1280.0 / aspect_ratio));
 
   w->renderer = SDL_CreateRenderer(w->window, -1, flags);
   w->texture = SDL_CreateTexture(w->renderer, pflags, tflags, width, height);
-  w->quit = 0;
-  w->keys.a = 0; w->keys.s = 0; w->keys.d = 0; w->keys.w = 0;
-  w->keys.up = 0; w->keys.down = 0; w->keys.left = 0; w->keys.right = 0;
-  w->keys._1 = 0; w->keys._2 = 0;
-  w->mouse.x = 0;
-  w->mouse.y = 0;
 
   w->target_width = width;
   w->target_height = height;
@@ -81,6 +77,7 @@ void window_update (window_t *w, unsigned *buf)
           case SDLK_d:     w->keys.d     = down; break;
           case SDLK_w:     w->keys.w     = down; break;
           case SDLK_s:     w->keys.s     = down; break;
+          case SDLK_p:     w->keys.p     = down; break;
           case SDLK_1:     w->keys._1    = down; break;
           case SDLK_2:     w->keys._2    = down; break;
           case SDLK_UP:    w->keys.up    = down; break;
