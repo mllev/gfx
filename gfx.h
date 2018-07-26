@@ -1,7 +1,7 @@
 #ifndef _GFX_H
 #define _GFX_H
 
-#include <math.h> /* sinf cosf */
+#include <math.h> /* sinf cosf fabs abs */
 
 typedef unsigned int u32;
 
@@ -54,6 +54,8 @@ struct _gfxvert {
 struct _gfxedge {
   float x;
   float x_step;
+  float z;
+  float z_step;
   int y_start;
   int y_end;
 };
@@ -312,10 +314,10 @@ static void gfx_clip_flags (int id)
   gfxv4 *camera = &GFX.vertex_pipe[id].camera_space;
 
   GFX.vertex_pipe[id].clip_flags = (int)(camera->z < GFX.near_plane)
-    | ((int)(screen->x < 0) << 1)
-    | ((int)(screen->x >= GFX.target_width) << 2)
-    | ((int)(screen->y < 0) << 3)
-    | ((int)(screen->y >= GFX.target_height) << 4);
+    | ((int)(camera->x < -camera->z) << 1)
+    | ((int)(camera->x > camera->z) << 2)
+    | ((int)(camera->y < -camera->z) << 3)
+    | ((int)(camera->y > camera->z) << 4);
 }
 
 static void gfx_lerp (gfxv4 *out, gfxv4 *v1, gfxv4 *v2, float step, float amt)
@@ -365,9 +367,9 @@ int gfx_init ()
 
 void gfx_clear ()
 {
-  int i = 0, l = GFX.target_width * GFX.target_height;
-  for (; i < l; i++) GFX.target[i] = 0;
-  for (; i < l; i++) GFX.depth_buffer[i] = 0.0;
+  int i, l = GFX.target_width * GFX.target_height;
+  for (i = 0; i < l; i++) GFX.target[i] = 0;
+  for (i = 0; i < l; i++) GFX.depth_buffer[i] = 0.0;
 }
 
 unsigned int gfx_memory_requirements ()
@@ -480,40 +482,42 @@ void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
   } while (++count < max);
 }
 
-static void gfx_draw_span (float x1, float x2, int y, unsigned int color)
+static void gfx_draw_span (float x1, float x2, float z1, float z2, int y, unsigned int color)
 {
   int sx1, sx2;
   unsigned int *dst, *max, offs;
+  float *zbuf, z, zstep;
 
   sx1 = (int)ceil(x1);
   sx2 = (int)ceil(x2);
 
+  z = z1;
+  zstep = (z2 - z1) / (x2 - x1);
+
   /* @todo: temporary until screen clipping */
   if (sx1 > GFX.target_width - 1 || sx2 < 0 || y < 0 || y > GFX.target_height - 1) return;
-  if (sx1 < 0) sx1 = 0;
   if (sx2 > GFX.target_width - 1) sx2 = GFX.target_width - 1;
+  if (sx1 < 0) {
+    z += (zstep * abs(sx1));
+    sx1 = 0;
+  }
 
   offs = GFX.target_width * y;
   dst = GFX.target + offs + sx1;
   max = GFX.target + offs + sx2;
+  zbuf = GFX.depth_buffer + offs + sx1;
 
-  while (dst < max) *dst++ = color;
+  while (dst < max) {
+    if (z > *zbuf) {
+      *dst = color;
+      *zbuf = z;
+    }
+
+    dst++;
+    zbuf++;
+    z += zstep;
+  }
 }
-
-static void gfx_init_edge (gfxedge* e, gfxv2* v1, gfxv2* v2)
-{
-  float yd = v2->y - v1->y;
-  float xd = v2->x - v1->x;
-  float prestep, fxstep;
-
-  e->y_start = (int)ceil(v1->y);
-  e->y_end = (int)ceil(v2->y);
-  prestep = ((float)e->y_start - v1->y);
-  fxstep = xd / yd;
-  e->x = v1->x + prestep * fxstep;
-  e->x_step = fxstep;
-}
-
 
 static void gfx_scan_edges(gfxedge *e1, gfxedge *e2, int left, unsigned int color)
 {
@@ -526,11 +530,35 @@ static void gfx_scan_edges(gfxedge *e1, gfxedge *e2, int left, unsigned int colo
   if (left) { tmp = e1; e1 = e2; e2 = tmp; }
 
   for (i = y1; i < y2; i++) {
-    gfx_draw_span(e1->x, e2->x, i, color);
+    gfx_draw_span(e1->x, e2->x, e1->z, e2->z, i, color);
     
     e1->x += e1->x_step;
+    e1->z += e1->z_step;
     e2->x += e2->x_step;
+    e2->z += e2->z_step;
   }
+}
+
+static void gfx_init_edge (gfxedge* e, gfxv2* v1, gfxv2* v2, float z1, float z2)
+{
+  float yd = v2->y - v1->y;
+  float xd = v2->x - v1->x;
+  float zd = z2 - z1;
+  float prestep, fxstep, fzstep;
+
+  e->y_start = (int)ceil(v1->y);
+  e->y_end = (int)ceil(v2->y);
+
+  prestep = ((float)e->y_start - v1->y);
+
+  fxstep = xd / yd;
+  fzstep = zd / yd;
+
+  e->x = v1->x + prestep * fxstep;
+  e->z = z1 + prestep * fzstep;
+
+  e->x_step = fxstep;
+  e->z_step = fzstep;
 }
 
 void gfx_draw_triangle_flat (gfxpoly *tri)
@@ -538,6 +566,7 @@ void gfx_draw_triangle_flat (gfxpoly *tri)
   gfxv2 *v1, *v2, *v3, *tmp;
   gfxedge e1, e2, e3;
   float area;
+  float z1, z2, z3, tz;
   unsigned int color;
   int r, g, b;
 
@@ -549,15 +578,19 @@ void gfx_draw_triangle_flat (gfxpoly *tri)
   v2 = &GFX.vertex_pipe[tri->v2].screen_space;
   v3 = &GFX.vertex_pipe[tri->v3].screen_space;
 
-  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; }
-  if (v3->y < v2->y) { tmp = v2; v2 = v3; v3 = tmp; }
-  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; }
+  z1 = 1.0 / GFX.vertex_pipe[tri->v1].camera_space.z;
+  z2 = 1.0 / GFX.vertex_pipe[tri->v2].camera_space.z;
+  z3 = 1.0 / GFX.vertex_pipe[tri->v3].camera_space.z;
+
+  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; tz = z1; z1 = z2; z2 = tz; }
+  if (v3->y < v2->y) { tmp = v2; v2 = v3; v3 = tmp; tz = z2; z2 = z3; z3 = tz; }
+  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; tz = z1; z1 = z2; z2 = tz; }
 
   area = gfx_v2_area(v1, v3, v2);
 
-  gfx_init_edge(&e1, v1, v3);
-  gfx_init_edge(&e2, v1, v2);
-  gfx_init_edge(&e3, v2, v3);
+  gfx_init_edge(&e1, v1, v3, z1, z3);
+  gfx_init_edge(&e2, v1, v2, z1, z2);
+  gfx_init_edge(&e3, v2, v3, z2, z3);
 
   if (area == 0) {
     return;
@@ -595,7 +628,6 @@ void gfx_draw_arrays (int start, int end)
   for (i = 0; i < vsize; i+=3) {
     gfx_v4_init(&tmp, GFX.vertices[i], GFX.vertices[i+1], GFX.vertices[i+2], 1);
     gfx_v4_mult(&pipe[vidx].camera_space, &tmp, &mvp);
-    gfx_project_to_screen(&pipe[vidx].screen_space, &pipe[vidx].camera_space);
     gfx_clip_flags(vidx++);
   }
 
@@ -612,6 +644,10 @@ void gfx_draw_arrays (int start, int end)
     if (pv[0]->clip_flags & pv[1]->clip_flags & pv[2]->clip_flags) {
       continue;
     }
+
+    gfx_project_to_screen(&pv[0]->screen_space, &pv[0]->camera_space);
+    gfx_project_to_screen(&pv[1]->screen_space, &pv[1]->camera_space);
+    gfx_project_to_screen(&pv[2]->screen_space, &pv[2]->camera_space);
 
     /* @todo: calculate color from lights here */
 
