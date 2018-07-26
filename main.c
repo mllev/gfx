@@ -80,7 +80,7 @@ int random_number (int range)
   return (rand() % range) - half;
 }
 
-#define NUM_CUBES 10000
+#define NUM_CUBES 1000
 
 float cube_x_pos[NUM_CUBES];
 float cube_y_pos[NUM_CUBES];
@@ -88,8 +88,8 @@ float cube_z_pos[NUM_CUBES];
 
 int main (int argc, char **argv)
 {
-  int width = 1280;
-  int height = 720;
+  int width = 640;
+  int height = 360;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;
@@ -105,8 +105,8 @@ int main (int argc, char **argv)
   srand(time(NULL));
 
   for (i = 0; i < NUM_CUBES; i++) {
-    cube_x_pos[i] = random_number(NUM_CUBES / 4);
-    cube_z_pos[i] = random_number(NUM_CUBES / 4);
+    cube_x_pos[i] = random_number(NUM_CUBES / 2);
+    cube_z_pos[i] = random_number(NUM_CUBES / 2);
     cube_y_pos[i] = random_number(100);
   }
 

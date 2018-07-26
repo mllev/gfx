@@ -310,7 +310,6 @@ static void gfx_v4_copy (gfxv4 *a, gfxv4 *b)
 
 static void gfx_clip_flags (int id)
 {
-  gfxv2 *screen = &GFX.vertex_pipe[id].screen_space;
   gfxv4 *camera = &GFX.vertex_pipe[id].camera_space;
 
   GFX.vertex_pipe[id].clip_flags = (int)(camera->z < GFX.near_plane)
@@ -496,7 +495,7 @@ static void gfx_draw_span (float x1, float x2, float z1, float z2, int y, unsign
 
   /* @todo: temporary until screen clipping */
   if (sx1 > GFX.target_width - 1 || sx2 < 0 || y < 0 || y > GFX.target_height - 1) return;
-  if (sx2 > GFX.target_width - 1) sx2 = GFX.target_width - 1;
+  if (sx2 > GFX.target_width) sx2 = GFX.target_width;
   if (sx1 < 0) {
     z += (zstep * abs(sx1));
     sx1 = 0;
@@ -609,7 +608,7 @@ void gfx_draw_mode (int mode)
 
 void gfx_draw_arrays (int start, int end)
 {
-  gfxvert *pv[3];
+  gfxvert *pv1, *pv2, *pv3;
   gfxv2 *v1, *v2, *v3;
   gfxm4 mv, mvp;
   gfxv4 tmp;
@@ -636,36 +635,36 @@ void gfx_draw_arrays (int start, int end)
     int i2 = GFX.indices[i+1];
     int i3 = GFX.indices[i+2];
 
-    pv[0] = &GFX.vertex_pipe[i1];
-    pv[1] = &GFX.vertex_pipe[i2];
-    pv[2] = &GFX.vertex_pipe[i3];
+    pv1 = &GFX.vertex_pipe[i1];
+    pv2 = &GFX.vertex_pipe[i2];
+    pv3 = &GFX.vertex_pipe[i3];
 
     /* fast all out check */
-    if (pv[0]->clip_flags & pv[1]->clip_flags & pv[2]->clip_flags) {
+    if (pv1->clip_flags & pv2->clip_flags & pv3->clip_flags) {
       continue;
     }
 
-    gfx_project_to_screen(&pv[0]->screen_space, &pv[0]->camera_space);
-    gfx_project_to_screen(&pv[1]->screen_space, &pv[1]->camera_space);
-    gfx_project_to_screen(&pv[2]->screen_space, &pv[2]->camera_space);
+    gfx_project_to_screen(&pv1->screen_space, &pv1->camera_space);
+    gfx_project_to_screen(&pv2->screen_space, &pv2->camera_space);
+    gfx_project_to_screen(&pv3->screen_space, &pv3->camera_space);
 
     /* @todo: calculate color from lights here */
 
-#define _zclip(p1, p2, p3, i1, i2, i3) { \
-  gfxv4 *pv1 = &p1->camera_space; \
-  gfxv4 *pv2 = &p2->camera_space; \
-  gfxv4 *pv3 = &p3->camera_space; \
-  if (p1->clip_flags & p2->clip_flags & 1) { \
-    gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
-    gfx_lerp(vp2, pv3, pv2, fabs(pv2->z - pv3->z), pv3->z - GFX.near_plane); \
+#define _zclip(pv1, pv2, pv3, i1, i2, i3) { \
+  gfxv4 *p1 = &pv1->camera_space; \
+  gfxv4 *p2 = &pv2->camera_space; \
+  gfxv4 *p3 = &pv3->camera_space; \
+  if (pv1->clip_flags & pv2->clip_flags & 1) { \
+    gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
+    gfx_lerp(vp2, p3, p2, fabs(p2->z - p3->z), p3->z - GFX.near_plane); \
     gfx_add_visible_indexed(pidx++, i3, v1, v2, i); \
-  } else if (p1->clip_flags & p3->clip_flags & 1) { \
-    gfx_lerp(vp1, pv2, pv3, fabs(pv3->z - pv2->z), pv2->z - GFX.near_plane); \
-    gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
+  } else if (pv1->clip_flags & pv3->clip_flags & 1) { \
+    gfx_lerp(vp1, p2, p3, fabs(p3->z - p2->z), p2->z - GFX.near_plane); \
+    gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
     gfx_add_visible_indexed(pidx++, i2, v1, v2, i); \
-  } else if (p1->clip_flags & 1) { \
-    gfx_lerp(vp1, pv3, pv1, fabs(pv1->z - pv3->z), pv3->z - GFX.near_plane); \
-    gfx_lerp(vp2, pv2, pv1, fabs(pv1->z - pv2->z), pv2->z - GFX.near_plane); \
+  } else if (pv1->clip_flags & 1) { \
+    gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
+    gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
     gfx_add_visible_indexed(pidx++, i3, v2, v1, i); \
     gfx_add_visible_indexed(pidx++, i3, i2, v2, i); \
   } \
@@ -673,7 +672,7 @@ void gfx_draw_arrays (int start, int end)
 
     /* zclip */
     /* use vidx to store new vertices at the end of the vertex pipe */
-    if ((pv[0]->clip_flags | pv[1]->clip_flags | pv[2]->clip_flags) & 1) {
+    if ((pv1->clip_flags | pv2->clip_flags | pv3->clip_flags) & 1) {
       int v1 = vidx++;
       int v2 = vidx++;
       gfxv4 *vp1, *vp2;
@@ -682,9 +681,9 @@ void gfx_draw_arrays (int start, int end)
       vp1 = &pipe[v1].camera_space;
       vp2 = &pipe[v2].camera_space;
 
-      _zclip(pv[0], pv[1], pv[2], i1, i2, i3);
-      _zclip(pv[1], pv[2], pv[0], i2, i3, i1);
-      _zclip(pv[2], pv[0], pv[1], i3, i1, i2);
+      _zclip(pv1, pv2, pv3, i1, i2, i3);
+      _zclip(pv2, pv3, pv1, i2, i3, i1);
+      _zclip(pv3, pv1, pv2, i3, i1, i2);
 
       gfx_project_to_screen(&pipe[v1].screen_space, &pipe[v1].camera_space);
       gfx_project_to_screen(&pipe[v2].screen_space, &pipe[v2].camera_space);
