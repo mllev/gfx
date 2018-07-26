@@ -164,8 +164,8 @@ float cube_z_pos[NUM_CUBES];
 
 int main (int argc, char **argv)
 {
-  int width = 1280;
-  int height = 720;
+  int width = 960;
+  int height = 540;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;
@@ -214,6 +214,9 @@ int main (int argc, char **argv)
 
     if (window.keys.left) fov -= 0.5;
     if (window.keys.right) fov += 0.5;
+
+    if (window.keys.up) gfx_translate(0, -cam_speed, 0);
+    if (window.keys.down) gfx_translate(0, cam_speed, 0);
 
     if (window.keys.p) is_paused = is_paused == 0 ? 1 : 0;
 
