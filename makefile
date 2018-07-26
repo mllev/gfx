@@ -1,8 +1,8 @@
-CC=cc
+CC=g++
 WARNS=-Wall -ansi -pedantic -std=c89
-ENTRY=main.c
-OSX_RELEASE=$(CC) $(ENTRY) -O3 -framework SDL2 $(WARNS)
-OSX_DEV=$(CC) $(ENTRY) -O0 -framework SDL2 $(WARNS)
+ENTRY=main.cpp
+OSX_RELEASE=$(CC) $(ENTRY) -O3 -framework SDL2
+OSX_DEV=$(CC) $(ENTRY) -O0 -framework SDL2
 
 dev:
 	$(OSX_DEV) -o prog && ./prog

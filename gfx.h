@@ -595,7 +595,7 @@ void gfx_draw_triangle_flat (gfxpoly *tri)
     return;
   }
 
-  color = 255 | r | g | b;
+  color = (255 << 24) | r | g | b;
 
   gfx_scan_edges(&e1, &e2, area > 0, color);
   gfx_scan_edges(&e1, &e3, area > 0, color);
