@@ -350,8 +350,9 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c)
 int gfx_init ()
 {
 #ifdef GFX_USE_MALLOC
-  __GFX = malloc(sizeof(struct _gfx));
-  if (!__GFX) return 0;
+  void *buf = malloc(sizeof(struct _gfx));
+  if (!buf) return 0;
+  __GFX = (struct _gfx *)buf;
   memset(__GFX, 0, sizeof(struct _gfx));
 #endif
 

@@ -18,49 +18,11 @@ options:
   GFX_USE_MALLOC
 */
 
+#define GFX_MAX_VERTICES 1000000
+#define GFX_MAX_FACES 1000000
+#define GFX_USE_MALLOC
 #define GFX_IMPLEMENT
 #include "gfx.h"
-
-float cube_vertices[] = {
-  0.0, 0.0, 0.0,
-  0.0, 0.0, 1.0,
-  0.0, 1.0, 0.0,
-  0.0, 1.0, 1.0,
-  1.0, 0.0, 0.0,
-  1.0, 0.0, 1.0,
-  1.0, 1.0, 0.0,
-  1.0, 1.0, 1.0
-};
-
-int cube_indices[] = {
-  0, 6, 4,
-  0, 2, 6,
-  0, 3, 2,
-  0, 1, 3,
-  2, 7, 6,
-  2, 3, 7,
-  4, 6, 7,
-  4, 7, 5,
-  0, 4, 5,
-  0, 5, 1,
-  1, 5, 7,
-  1, 7, 3
-};
-
-float cube_colors[] = {
-  1.0, 0.0, 0.0,
-  1.0, 0.0, 0.0,
-  1.0, 1.0, 1.0,
-  1.0, 1.0, 1.0,
-  0.0, 1.0, 0.0,
-  0.0, 1.0, 0.0,
-  1.0, 1.0, 1.0,
-  1.0, 1.0, 1.0,
-  1.0, 1.0, 1.0,
-  1.0, 1.0, 1.0,
-  1.0, 1.0, 1.0,
-  1.0, 1.0, 1.0
-};
 
 int mesh_num_vertices;
 int mesh_num_indices;
@@ -80,7 +42,7 @@ void load_obj (const char *file)
     &attrib, &shapes, &materials, 
     &err,
     file,
-    "/Users/matthewlevenstein/Desktop/projects/engine/assets/", 
+    "./models/", 
     true
   );
 
@@ -134,34 +96,6 @@ void load_obj (const char *file)
   }
 }
 
-void draw_cube (float rotate_amt, float x, float y, float z)
-{
-  gfx_matrix_mode(GFX_MODEL_MATRIX);
-  gfx_identity(); /* step 0: init matrix */
-
-  /* matrices must be multiplied in reverse order of the steps */
-  gfx_translate(x, y, z); /* step 5: translate */
-  gfx_rotate(1, 0, 0, rotate_amt); /* step 4: rotate about x axis */
-  gfx_rotate(0, 1, 0, rotate_amt); /* step 3: rotate about y axis */
-  gfx_scale(10); /* step 2: make larger */
-  gfx_translate(-0.5, -0.5, -0.5); /* step 1: move to center */
-
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, cube_colors, 12);
-  gfx_draw_arrays(0, -1);
-}
-
-int random_number (int range)
-{
-  int half = range / 2;
-  return (rand() % range) - half;
-}
-
-#define NUM_CUBES 1000
-
-float cube_x_pos[NUM_CUBES];
-float cube_y_pos[NUM_CUBES];
-float cube_z_pos[NUM_CUBES];
-
 int main (int argc, char **argv)
 {
   int width = 960;
@@ -173,18 +107,9 @@ int main (int argc, char **argv)
   int is_paused = 0;
   int mode = 0;
   int frame, start;
-  float rotate_amt = 0;
   char debug_string[50];
   int i;
   float cam_speed = 20;
-
-  srand(time(NULL));
-
-  for (i = 0; i < NUM_CUBES; i++) {
-    cube_x_pos[i] = random_number(NUM_CUBES / 2);
-    cube_z_pos[i] = random_number(NUM_CUBES / 2);
-    cube_y_pos[i] = random_number(100);
-  }
 
   buf = (unsigned int *)malloc((width * height) * sizeof(unsigned int));
   zbuf = (float *)malloc((width * height) * sizeof(float));
@@ -193,7 +118,7 @@ int main (int argc, char **argv)
 
   window_open(&window, "GFX", width, height);
 
-  load_obj("/Users/matthewlevenstein/Desktop/projects/engine/assets/mountain.obj");
+  load_obj("./models/mountain.obj");
 
   gfx_init();
   gfx_bind_render_target(buf, width, height);
@@ -218,16 +143,10 @@ int main (int argc, char **argv)
     if (window.keys.up) gfx_translate(0, -cam_speed, 0);
     if (window.keys.down) gfx_translate(0, cam_speed, 0);
 
-    if (window.keys.p) is_paused = is_paused == 0 ? 1 : 0;
-
     if (window.keys._1) mode = GFX_FLAT_FILL_MODE;
     if (window.keys._2) mode = GFX_WIREFRAME_MODE;
 
     gfx_draw_mode(mode);
-
-    for (i = 0; i < NUM_CUBES; i++) {
-      draw_cube(rotate_amt, cube_x_pos[i], cube_y_pos[i], cube_z_pos[i]);
-    }
 
     gfx_matrix_mode(GFX_MODEL_MATRIX);
     gfx_identity();
@@ -244,8 +163,6 @@ int main (int argc, char **argv)
     window_update(&window, buf);
 
     gfx_clear();
-
-    if (!is_paused) rotate_amt += 0.02;
   }
 
   window_close(&window);
