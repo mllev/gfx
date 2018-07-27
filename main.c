@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "font.h"
+#include "src/font.h"
 
 #define WINDOW_IMPL
-#include "window.h"
+#include "src/window.h"
 
 /* 
 options:
@@ -14,7 +14,7 @@ options:
 */
 
 #define GFX_IMPLEMENT
-#include "gfx.h"
+#include "src/gfx.h"
 
 float cube_vertices[] = {
   0.0, 0.0, 0.0,

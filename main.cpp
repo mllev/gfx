@@ -3,13 +3,13 @@
 
 #include <iostream>
 
-#include "font.h"
+#include "src/font.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
 #define WINDOW_IMPL
-#include "window.h"
+#include "src/window.h"
 
 /* 
 options:
@@ -22,7 +22,7 @@ options:
 #define GFX_MAX_FACES 1000000
 #define GFX_USE_MALLOC
 #define GFX_IMPLEMENT
-#include "gfx.h"
+#include "src/gfx.h"
 
 int mesh_num_vertices;
 int mesh_num_indices;
