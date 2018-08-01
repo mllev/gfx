@@ -5,7 +5,7 @@
 
 typedef unsigned int u32;
 
-#define PI 3.141592653589793
+#define GFX_PI 3.141592653589793
 
 #ifndef GFX_MAX_VERTICES
 #define GFX_MAX_VERTICES 10000
@@ -33,6 +33,7 @@ typedef struct _gfxm4 gfxm4;
 typedef struct _gfxvert gfxvert;
 typedef struct _gfxpoly gfxpoly;
 typedef struct _gfxedge gfxedge;
+typedef struct _gfxnormal gfxnormal;
 
 struct _gfxv2 { float x, y; };
 struct _gfxv3 { float x, y, z; };
@@ -43,6 +44,11 @@ struct _gfxm4 {
   float _10, _11, _12, _13;
   float _20, _21, _22, _23;
   float _30, _31, _32, _33;
+};
+
+struct _gfxnormal {
+  gfxv4 dir;
+  gfxv4 center;
 };
 
 struct _gfxvert {
@@ -314,9 +320,9 @@ static void gfx_clip_flags (int id)
 
   GFX.vertex_pipe[id].clip_flags = (int)(camera->z < GFX.near_plane)
     | ((int)(camera->x < -camera->z) << 1)
-    | ((int)(camera->x > camera->z) << 2)
+    | ((int)(camera->x >  camera->z) << 2)
     | ((int)(camera->y < -camera->z) << 3)
-    | ((int)(camera->y > camera->z) << 4);
+    | ((int)(camera->y >  camera->z) << 4);
 }
 
 static void gfx_lerp (gfxv4 *out, gfxv4 *v1, gfxv4 *v2, float step, float amt)
@@ -345,6 +351,24 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c)
   GFX.visible[i].r = GFX.colors[c+0];
   GFX.visible[i].g = GFX.colors[c+1];
   GFX.visible[i].b = GFX.colors[c+2];
+}
+
+static void gfx_calculate_normal (gfxnormal* normal, gfxvert *v1, gfxvert *v2, gfxvert *v3)
+{
+  gfxv4 tmp1, tmp2;
+  float cx, cy, cz;
+
+  gfx_v4_sub(&tmp1, &v2->camera_space, &v1->camera_space);
+  gfx_v4_sub(&tmp2, &v3->camera_space, &v1->camera_space);
+
+  gfx_v4_crossp(&normal->dir, &v2->camera_space, &v3->camera_space);
+  gfx_v4_normalize(&normal->dir, &normal->dir);
+
+  cx = (v1->camera_space.x + v2->camera_space.x + v3->camera_space.y) / 3;
+  cy = (v1->camera_space.y + v2->camera_space.y + v3->camera_space.y) / 3;
+  cz = (v1->camera_space.y + v2->camera_space.y + v3->camera_space.y) / 3;
+
+  gfx_v4_init(&normal->center, cx, cy, cz, 1.0);
 }
 
 int gfx_init ()
@@ -446,7 +470,7 @@ void gfx_identity ()
 
 void gfx_perspective (float fov, float a, float n, float f)
 {
-  fov = ((fov * PI) / 180.0f);
+  fov = ((fov * GFX_PI) / 180.0f);
   gfx_m4_perspective(GFX.active, fov, a, n, f);
 }
 
@@ -650,6 +674,10 @@ void gfx_draw_arrays (int start, int end)
     gfx_project_to_screen(&pv3->screen_space, &pv3->camera_space);
 
     /* @todo: calculate color from lights here */
+    {
+      gfxnormal normal;
+      gfx_calculate_normal(&normal, pv1, pv2, pv3);
+    }
 
 #define _zclip(pv1, pv2, pv3, i1, i2, i3) { \
   gfxv4 *p1 = &pv1->camera_space; \

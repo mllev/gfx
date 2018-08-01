@@ -1,20 +1,13 @@
-CC=cc
 WARNS=-Wall -ansi -pedantic -std=c89
-ENTRY=main.c
-OSX_RELEASE=$(CC) $(ENTRY) -O3 -framework SDL2 $(WARNS)
-OSX_DEV=$(CC) $(ENTRY) -O0 -framework SDL2 $(WARNS)
 
-obj_test:
-	g++ main.cpp -O3 -framework SDL2 -o prog && ./prog
+obj:
+	g++ tests/obj.cpp -O3 -framework SDL2 -o prog && ./prog
 
-dev:
-	$(OSX_DEV) -o prog && ./prog
-
-release:
-	$(OSX_RELEASE) -o prog && ./prog
+boxes:
+	gcc tests/boxes.c -O3 $(WARNS) -framework SDL2 -o prog && ./prog
 
 debug:
-	$(OSX_DEV) -g -o prog && lldb prog
+	gcc tests/boxes.c -O0 $(WARNS) -framework SDL2 -g -o prog && lldb prog
 
 clean:
 	rm -f prog && rm -f -rf prog.dSYM

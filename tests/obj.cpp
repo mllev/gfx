@@ -3,13 +3,13 @@
 
 #include <iostream>
 
-#include "src/font.h"
+#include "../src/font.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader.h"
+#include "../deps/tiny_obj_loader.h"
 
 #define WINDOW_IMPL
-#include "src/window.h"
+#include "../src/window.h"
 
 /* 
 options:
@@ -22,7 +22,7 @@ options:
 #define GFX_MAX_FACES 1000000
 #define GFX_USE_MALLOC
 #define GFX_IMPLEMENT
-#include "src/gfx.h"
+#include "../src/gfx.h"
 
 int mesh_num_vertices;
 int mesh_num_indices;
@@ -98,8 +98,8 @@ void load_obj (const char *file)
 
 int main (int argc, char **argv)
 {
-  int width = 960;
-  int height = 540;
+  int width = 640;
+  int height = 360;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;
@@ -150,6 +150,7 @@ int main (int argc, char **argv)
 
     gfx_matrix_mode(GFX_MODEL_MATRIX);
     gfx_identity();
+    gfx_rotate(0, 1, 0, -(PI / 2));
     gfx_scale(100);
     gfx_bind_arrays(mesh_vertices, mesh_num_vertices, mesh_indices, mesh_num_indices, mesh_colors, mesh_num_indices);
     gfx_draw_arrays(0, -1);

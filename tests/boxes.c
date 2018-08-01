@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "src/font.h"
+#include "../src/font.h"
 
 #define WINDOW_IMPL
-#include "src/window.h"
+#include "../src/window.h"
 
 /* 
 options:
@@ -14,7 +14,7 @@ options:
 */
 
 #define GFX_IMPLEMENT
-#include "src/gfx.h"
+#include "../src/gfx.h"
 
 float cube_vertices[] = {
   0.0, 0.0, 0.0,
@@ -87,8 +87,8 @@ float cube_z_pos[NUM_CUBES];
 
 int main (int argc, char **argv)
 {
-  int width = 960;
-  int height = 540;
+  int width = 640;
+  int height = 360;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;
