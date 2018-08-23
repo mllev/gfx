@@ -116,7 +116,7 @@ void gfx_draw_mode(int);
 void gfx_matrix_mode(int);
 void gfx_rotate(float, float, float, float);
 void gfx_translate(float, float, float);
-void gfx_scale(float);
+void gfx_scale(float, float, float);
 void gfx_identity(void);
 void gfx_perspective(float, float, float, float);
 
@@ -460,10 +460,10 @@ void gfx_translate (float x, float y, float z)
   gfx_m4_copy(GFX.active, &GFX.transform);
 }
 
-void gfx_scale (float f)
+void gfx_scale (float x, float y, float z)
 {
   gfxm4 scale;
-  gfx_m4_scale(&scale, f, f, f);
+  gfx_m4_scale(&scale, x, y, z);
   gfx_m4_mult(&GFX.transform, GFX.active, &scale);
   gfx_m4_copy(GFX.active, &GFX.transform);
 }

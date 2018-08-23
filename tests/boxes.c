@@ -66,7 +66,7 @@ void draw_cube (float rotate_amt, float x, float y, float z)
   gfx_translate(x, y, z); /* step 5: translate */
   gfx_rotate(1, 0, 0, rotate_amt); /* step 4: rotate about x axis */
   gfx_rotate(0, 1, 0, rotate_amt); /* step 3: rotate about y axis */
-  gfx_scale(10); /* step 2: make larger */
+  gfx_scale(10, 10, 10); /* step 2: make larger */
   gfx_translate(-0.5, -0.5, -0.5); /* step 1: move to center */
 
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, cube_colors, 12);
