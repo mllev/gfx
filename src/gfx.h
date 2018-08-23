@@ -342,15 +342,15 @@ static void gfx_lerp (gfxv4 *out, gfxv4 *v1, gfxv4 *v2, float step, float amt)
   out->w = out->z = v1->z + (zstep * amt);
 }
 
-static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c)
+static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c, float brightness)
 {
   GFX.visible[i].v1 = v1;
   GFX.visible[i].v2 = v2;
   GFX.visible[i].v3 = v3;
 
-  GFX.visible[i].r = GFX.colors[c+0];
-  GFX.visible[i].g = GFX.colors[c+1];
-  GFX.visible[i].b = GFX.colors[c+2];
+  GFX.visible[i].r = GFX.colors[c+0] * brightness;
+  GFX.visible[i].g = GFX.colors[c+1] * brightness;
+  GFX.visible[i].b = GFX.colors[c+2] * brightness;
 }
 
 static void gfx_calculate_normal (gfxnormal* normal, gfxvert *v1, gfxvert *v2, gfxvert *v3)
@@ -361,7 +361,7 @@ static void gfx_calculate_normal (gfxnormal* normal, gfxvert *v1, gfxvert *v2, g
   gfx_v4_sub(&tmp1, &v2->camera_space, &v1->camera_space);
   gfx_v4_sub(&tmp2, &v3->camera_space, &v1->camera_space);
 
-  gfx_v4_crossp(&normal->dir, &v2->camera_space, &v3->camera_space);
+  gfx_v4_crossp(&normal->dir, &tmp2, &tmp1);
   gfx_v4_normalize(&normal->dir, &normal->dir);
 
   cx = (v1->camera_space.x + v2->camera_space.x + v3->camera_space.y) / 3;
@@ -522,7 +522,7 @@ static void gfx_draw_span (float x1, float x2, float z1, float z2, int y, unsign
   if (sx1 > GFX.target_width - 1 || sx2 < 0 || y < 0 || y > GFX.target_height - 1) return;
   if (sx2 > GFX.target_width) sx2 = GFX.target_width;
   if (sx1 < 0) {
-    z += (zstep * abs(sx1));
+    z += (zstep * -(sx1));
     sx1 = 0;
   }
 
@@ -639,6 +639,7 @@ void gfx_draw_arrays (int start, int end)
   gfxv4 tmp;
   int i, vidx, pidx, vsize, isize;
   gfxvert *pipe = (gfxvert *)&GFX.vertex_pipe;
+  float brightness;
 
   vsize = GFX.vertex_count * 3;
   isize = end == -1 ? GFX.index_count * 3 : (end + 1) * 3;
@@ -676,7 +677,13 @@ void gfx_draw_arrays (int start, int end)
     /* @todo: calculate color from lights here */
     {
       gfxnormal normal;
+      gfxv4 light;
+      float d;
+
+      gfx_v4_init(&light, 0, 0, -1, 0); /* single directional light */
       gfx_calculate_normal(&normal, pv1, pv2, pv3);
+      d = gfx_v4_dotp(&light, &normal.dir);
+      brightness = d < 0 ? -d : d;
     }
 
 #define _zclip(pv1, pv2, pv3, i1, i2, i3) { \
@@ -686,16 +693,16 @@ void gfx_draw_arrays (int start, int end)
   if (pv1->clip_flags & pv2->clip_flags & 1) { \
     gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
     gfx_lerp(vp2, p3, p2, fabs(p2->z - p3->z), p3->z - GFX.near_plane); \
-    gfx_add_visible_indexed(pidx++, i3, v1, v2, i); \
+    gfx_add_visible_indexed(pidx++, i3, v1, v2, i, brightness); \
   } else if (pv1->clip_flags & pv3->clip_flags & 1) { \
     gfx_lerp(vp1, p2, p3, fabs(p3->z - p2->z), p2->z - GFX.near_plane); \
     gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
-    gfx_add_visible_indexed(pidx++, i2, v1, v2, i); \
+    gfx_add_visible_indexed(pidx++, i2, v1, v2, i, brightness); \
   } else if (pv1->clip_flags & 1) { \
     gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
     gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
-    gfx_add_visible_indexed(pidx++, i3, v2, v1, i); \
-    gfx_add_visible_indexed(pidx++, i3, i2, v2, i); \
+    gfx_add_visible_indexed(pidx++, i3, v2, v1, i, brightness); \
+    gfx_add_visible_indexed(pidx++, i3, i2, v2, i, brightness); \
   } \
 }
 
@@ -717,7 +724,7 @@ void gfx_draw_arrays (int start, int end)
       gfx_project_to_screen(&pipe[v1].screen_space, &pipe[v1].camera_space);
       gfx_project_to_screen(&pipe[v2].screen_space, &pipe[v2].camera_space);
     } else {
-      gfx_add_visible_indexed(pidx++, i1, i2, i3, i);
+      gfx_add_visible_indexed(pidx++, i1, i2, i3, i, brightness);
     }
 
 #undef _zclip

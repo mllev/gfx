@@ -8,7 +8,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../deps/tiny_obj_loader.h"
 
-#define WINDOW_IMPL
+#define WINDOW_IMPLEMENT
 #include "../src/window.h"
 
 /* 
@@ -150,7 +150,7 @@ int main (int argc, char **argv)
 
     gfx_matrix_mode(GFX_MODEL_MATRIX);
     gfx_identity();
-    gfx_rotate(0, 1, 0, -(PI / 2));
+    gfx_rotate(0, 1, 0, -(GFX_PI / 2));
     gfx_scale(100);
     gfx_bind_arrays(mesh_vertices, mesh_num_vertices, mesh_indices, mesh_num_indices, mesh_colors, mesh_num_indices);
     gfx_draw_arrays(0, -1);

@@ -10,8 +10,6 @@ void window_open(window_t*, const char*, int, int);
 void window_update(window_t*, unsigned*);
 void window_close(window_t*);
 
-#ifdef WINDOW_IMPL
-
 struct _window {
   struct {
     int a, w, s, d, p, m;
@@ -33,6 +31,8 @@ struct _window {
   int target_width;
   int target_height;
 };
+
+#ifdef WINDOW_IMPLEMENT
 
 void window_open (window_t *w, const char *name, int width, int height)
 {

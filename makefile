@@ -6,6 +6,9 @@ obj:
 boxes:
 	gcc tests/boxes.c -O3 $(WARNS) -framework SDL2 -o prog && ./prog
 
+game:
+	gcc tests/game.c -O3 $(WARNS) -framework SDL2 -o prog && ./prog
+
 debug:
 	gcc tests/boxes.c -O0 $(WARNS) -framework SDL2 -g -o prog && lldb prog
 

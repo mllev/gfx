@@ -3,7 +3,7 @@
 
 #include "../src/font.h"
 
-#define WINDOW_IMPL
+#define WINDOW_IMPLEMENT
 #include "../src/window.h"
 
 /* 
