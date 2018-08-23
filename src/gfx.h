@@ -348,9 +348,15 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c, float
   GFX.visible[i].v2 = v2;
   GFX.visible[i].v3 = v3;
 
-  GFX.visible[i].r = GFX.colors[c+0] * brightness;
-  GFX.visible[i].g = GFX.colors[c+1] * brightness;
-  GFX.visible[i].b = GFX.colors[c+2] * brightness;
+  if (GFX.colors) {
+    GFX.visible[i].r = GFX.colors[c+0] * brightness;
+    GFX.visible[i].g = GFX.colors[c+1] * brightness;
+    GFX.visible[i].b = GFX.colors[c+2] * brightness;
+  } else {
+    GFX.visible[i].r = 1.0 * brightness;
+    GFX.visible[i].g = 1.0 * brightness;
+    GFX.visible[i].b = 1.0 * brightness;
+  }
 }
 
 static int gfx_is_counter_clockwise (gfxv2 *v1, gfxv2 *v2, gfxv2 *v3)
@@ -690,7 +696,11 @@ void gfx_draw_arrays (int start, int end)
       d = gfx_v4_dotp(&light, &normal.dir);
       brightness = d < 0 ? -d : d;
 
-      /* backface culling */
+      if (brightness < 0.2) {
+        brightness = 0.2; /* ambient light */
+      }
+
+      /* backface culling (needs to check AFTER zclip somehow)
       if (gfx_is_counter_clockwise(
         &pv1->screen_space,
         &pv2->screen_space,
@@ -698,6 +708,7 @@ void gfx_draw_arrays (int start, int end)
       )) {
         continue;
       }
+      */
     }
 
     #define _zclip(pv1, pv2, pv3, i1, i2, i3) { \
