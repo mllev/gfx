@@ -87,8 +87,8 @@ float cube_z_pos[NUM_CUBES];
 
 int main (int argc, char **argv)
 {
-  int width = 640;
-  int height = 360;
+  int width = 960;
+  int height = 540;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;

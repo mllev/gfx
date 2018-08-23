@@ -353,6 +353,11 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c, float
   GFX.visible[i].b = GFX.colors[c+2] * brightness;
 }
 
+static int gfx_is_counter_clockwise (gfxv2 *v1, gfxv2 *v2, gfxv2 *v3)
+{
+  return ((v2->y - v1->y) * (v3->x - v1->x) - (v2->x - v1->x) * (v3->y - v1->y)) > 0;
+}
+
 static void gfx_calculate_normal (gfxnormal* normal, gfxvert *v1, gfxvert *v2, gfxvert *v3)
 {
   gfxv4 tmp1, tmp2;
@@ -680,31 +685,40 @@ void gfx_draw_arrays (int start, int end)
       gfxv4 light;
       float d;
 
-      gfx_v4_init(&light, 0, 0, -1, 0); /* single directional light */
+      gfx_v4_init(&light, 0, 0, 1, 0); /* single directional light */
       gfx_calculate_normal(&normal, pv1, pv2, pv3);
       d = gfx_v4_dotp(&light, &normal.dir);
       brightness = d < 0 ? -d : d;
+
+      /* backface culling */
+      if (gfx_is_counter_clockwise(
+        &pv1->screen_space,
+        &pv2->screen_space,
+        &pv3->screen_space
+      )) {
+        continue;
+      }
     }
 
-#define _zclip(pv1, pv2, pv3, i1, i2, i3) { \
-  gfxv4 *p1 = &pv1->camera_space; \
-  gfxv4 *p2 = &pv2->camera_space; \
-  gfxv4 *p3 = &pv3->camera_space; \
-  if (pv1->clip_flags & pv2->clip_flags & 1) { \
-    gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
-    gfx_lerp(vp2, p3, p2, fabs(p2->z - p3->z), p3->z - GFX.near_plane); \
-    gfx_add_visible_indexed(pidx++, i3, v1, v2, i, brightness); \
-  } else if (pv1->clip_flags & pv3->clip_flags & 1) { \
-    gfx_lerp(vp1, p2, p3, fabs(p3->z - p2->z), p2->z - GFX.near_plane); \
-    gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
-    gfx_add_visible_indexed(pidx++, i2, v1, v2, i, brightness); \
-  } else if (pv1->clip_flags & 1) { \
-    gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
-    gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
-    gfx_add_visible_indexed(pidx++, i3, v2, v1, i, brightness); \
-    gfx_add_visible_indexed(pidx++, i3, i2, v2, i, brightness); \
-  } \
-}
+    #define _zclip(pv1, pv2, pv3, i1, i2, i3) { \
+      gfxv4 *p1 = &pv1->camera_space; \
+      gfxv4 *p2 = &pv2->camera_space; \
+      gfxv4 *p3 = &pv3->camera_space; \
+      if (pv1->clip_flags & pv2->clip_flags & 1) { \
+        gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
+        gfx_lerp(vp2, p3, p2, fabs(p2->z - p3->z), p3->z - GFX.near_plane); \
+        gfx_add_visible_indexed(pidx++, i3, v1, v2, i, brightness); \
+      } else if (pv1->clip_flags & pv3->clip_flags & 1) { \
+        gfx_lerp(vp1, p2, p3, fabs(p3->z - p2->z), p2->z - GFX.near_plane); \
+        gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
+        gfx_add_visible_indexed(pidx++, i2, v1, v2, i, brightness); \
+      } else if (pv1->clip_flags & 1) { \
+        gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
+        gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
+        gfx_add_visible_indexed(pidx++, i3, v2, v1, i, brightness); \
+        gfx_add_visible_indexed(pidx++, i3, i2, v2, i, brightness); \
+      } \
+    }
 
     /* zclip */
     /* use vidx to store new vertices at the end of the vertex pipe */
@@ -727,7 +741,7 @@ void gfx_draw_arrays (int start, int end)
       gfx_add_visible_indexed(pidx++, i1, i2, i3, i, brightness);
     }
 
-#undef _zclip
+    #undef _zclip
   }
 
   if (GFX.draw_mode == GFX_WIREFRAME_MODE) {

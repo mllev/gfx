@@ -98,8 +98,8 @@ void load_obj (const char *file)
 
 int main (int argc, char **argv)
 {
-  int width = 640;
-  int height = 360;
+  int width = 960;
+  int height = 540;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;
