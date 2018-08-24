@@ -359,8 +359,14 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c, float
   }
 }
 
-static int gfx_is_counter_clockwise (gfxv2 *v1, gfxv2 *v2, gfxv2 *v3)
+static int gfx_is_backfacing (gfxpoly *tri)
 {
+  gfxv2 *v1, *v2, *v3;
+
+  v1 = &GFX.vertex_pipe[tri->v1].screen_space;
+  v2 = &GFX.vertex_pipe[tri->v2].screen_space;
+  v3 = &GFX.vertex_pipe[tri->v3].screen_space;
+
   return ((v2->y - v1->y) * (v3->x - v1->x) - (v2->x - v1->x) * (v3->y - v1->y)) > 0;
 }
 
@@ -685,7 +691,7 @@ void gfx_draw_arrays (int start, int end)
     gfx_project_to_screen(&pv2->screen_space, &pv2->camera_space);
     gfx_project_to_screen(&pv3->screen_space, &pv3->camera_space);
 
-    /* @todo: calculate color from lights here */
+    /* calculate color from lights here */
     {
       gfxnormal normal;
       gfxv4 light;
@@ -699,16 +705,6 @@ void gfx_draw_arrays (int start, int end)
       if (brightness < 0.2) {
         brightness = 0.2; /* ambient light */
       }
-
-      /* backface culling (needs to check AFTER zclip somehow)
-      if (gfx_is_counter_clockwise(
-        &pv1->screen_space,
-        &pv2->screen_space,
-        &pv3->screen_space
-      )) {
-        continue;
-      }
-      */
     }
 
     #define _zclip(pv1, pv2, pv3, i1, i2, i3) { \
@@ -770,7 +766,9 @@ void gfx_draw_arrays (int start, int end)
   } else if (GFX.draw_mode == GFX_FLAT_FILL_MODE) {
     for (i = 0; i < pidx; i++) {
       /* @todo: screen clip */
-      gfx_draw_triangle_flat(&GFX.visible[i]);
+      if (!gfx_is_backfacing(&GFX.visible[i])) {
+        gfx_draw_triangle_flat(&GFX.visible[i]);
+      }
     }
   }
 }
