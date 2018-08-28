@@ -84,7 +84,6 @@ struct _gfx {
 
   int vertex_count;
   int index_count;
-  int color_count;
 
   float near_plane;
   float x_scale;
@@ -109,7 +108,7 @@ void gfx_clear(void);
 
 void gfx_bind_render_target(u32*, int, int);
 void gfx_bind_depth_buffer(float*);
-void gfx_bind_arrays(float*, int, int*, int, float*, int);
+void gfx_bind_arrays(float*, int, int*, int, float*);
 
 void gfx_draw_arrays(int, int);
 void gfx_draw_text_8x8(char[][8], const char *, int, int, int);
@@ -439,7 +438,7 @@ void gfx_bind_depth_buffer (float *depth_buffer)
   GFX.depth_buffer = depth_buffer;
 }
 
-void gfx_bind_arrays (float *vertices, int vsize, int *indices, int isize, float *colors, int csize)
+void gfx_bind_arrays (float *vertices, int vsize, int *indices, int isize, float *colors)
 {
   GFX.vertices = vertices;
   GFX.indices = indices;
@@ -447,7 +446,6 @@ void gfx_bind_arrays (float *vertices, int vsize, int *indices, int isize, float
 
   GFX.vertex_count = vsize;
   GFX.index_count = isize;
-  GFX.color_count = csize;
 }
 
 void gfx_rotate (float x, float y, float z, float a)
@@ -755,9 +753,11 @@ void gfx_draw_arrays (int start, int end)
 
       /* @todo: screen clip */
 
-      gfx_draw_line(v1->x, v1->y, v2->x, v2->y, 0xffffffff);
-      gfx_draw_line(v2->x, v2->y, v3->x, v3->y, 0xffffffff);
-      gfx_draw_line(v3->x, v3->y, v1->x, v1->y, 0xffffffff);
+      if (!gfx_is_backfacing(&GFX.visible[i])) {
+        gfx_draw_line(v1->x, v1->y, v2->x, v2->y, 0xffffffff);
+        gfx_draw_line(v2->x, v2->y, v3->x, v3->y, 0xffffffff);
+        gfx_draw_line(v3->x, v3->y, v1->x, v1->y, 0xffffffff);
+      }
     }
   } else if (GFX.draw_mode == GFX_FLAT_FILL_MODE) {
     for (i = 0; i < pidx; i++) {

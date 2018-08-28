@@ -22,7 +22,7 @@ void draw_frame ()
   gfx_translate(10, 0, 25);
   gfx_scale(3, 6, 3);
   gfx_translate(-0.5, -0.5, -0.5);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, NULL, 12);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, NULL);
   gfx_draw_arrays(0, -1);
 
   gfx_matrix_mode(GFX_MODEL_MATRIX);
@@ -30,7 +30,7 @@ void draw_frame ()
   gfx_translate(0, -3, 25);
   gfx_scale(25, 3, 25);
   gfx_translate(-0.5, -0.5, -0.5);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, NULL, 12);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, NULL);
   gfx_draw_arrays(0, -1);
 }
 
