@@ -125,8 +125,7 @@ int main (int argc, char **argv)
   gfx_bind_depth_buffer(zbuf);
 
   while (!window.quit) {
-    gfx_matrix_mode(GFX_PROJECTION_MATRIX);
-    gfx_perspective(fov, (float)width / (float)height, 1, 1000.0);
+    gfx_projection(fov, (float)width / (float)height, 50);
 
     gfx_matrix_mode(GFX_VIEW_MATRIX);
 
@@ -158,8 +157,9 @@ int main (int argc, char **argv)
     frame = SDL_GetTicks() - start;
 
     sprintf(debug_string, "frame: %dms", frame);
-
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
+    sprintf(debug_string, "fov: %f", fov);
+    gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 10);
 
     window_update(&window, buf);
 

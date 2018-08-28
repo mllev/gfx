@@ -87,6 +87,9 @@ struct _gfx {
   int color_count;
 
   float near_plane;
+  float x_scale;
+  float y_scale;
+
   int draw_mode;
 
   gfxm4 model;
@@ -118,7 +121,7 @@ void gfx_rotate(float, float, float, float);
 void gfx_translate(float, float, float);
 void gfx_scale(float, float, float);
 void gfx_identity(void);
-void gfx_perspective(float, float, float, float);
+void gfx_projection(float, float, float);
 
 #ifdef GFX_IMPLEMENT
 
@@ -204,26 +207,13 @@ static void gfx_m4_ident (gfxm4 *m)
 
 static void gfx_project_to_screen (gfxv2 *s, gfxv4 *v)
 {
-  float zinv = 1.0f / v->w;
+  float zinv = 1.0f / v->z;
 
-  s->x = ((v->x * zinv) + 1.0f) * (GFX.target_width / 2);
-  s->y = ((v->y * zinv) + 1.0f) * (GFX.target_height / 2);
+  s->x = ((v->x * GFX.x_scale * zinv) + 1.0f) * (GFX.target_width / 2);
+  s->y = ((v->y * GFX.y_scale * zinv) + 1.0f) * (GFX.target_height / 2);
 
   /* necessary if screen is inverted */
   s->y = GFX.target_height - 1 - s->y;
-}
-
-static void gfx_m4_perspective (gfxm4 *m, float fov, float aspect, float n, float f)
-{
-  float y = 1.0 / tanf(fov / 2);
-
-  m->_00 = y / aspect;
-  m->_11 = y;
-  m->_22 = 1;
-  m->_32 = 1;
-  m->_33 = 0;
-
-  GFX.near_plane = n;
 }
 
 static void gfx_m4_rotation (gfxm4 *m, float x, float y, float z, float a)
@@ -318,11 +308,15 @@ static void gfx_clip_flags (int id)
 {
   gfxv4 *camera = &GFX.vertex_pipe[id].camera_space;
 
-  GFX.vertex_pipe[id].clip_flags = (int)(camera->z < GFX.near_plane)
-    | ((int)(camera->x < -camera->z) << 1)
-    | ((int)(camera->x >  camera->z) << 2)
-    | ((int)(camera->y < -camera->z) << 3)
-    | ((int)(camera->y >  camera->z) << 4);
+  float y = camera->y * GFX.y_scale;
+  float x = camera->x * GFX.x_scale;
+  float z = camera->z;
+
+  GFX.vertex_pipe[id].clip_flags = (int)(z < GFX.near_plane)
+    | ((int)(x < -z) << 1)
+    | ((int)(x >  z) << 2)
+    | ((int)(y < -z) << 3)
+    | ((int)(y >  z) << 4);
 }
 
 static void gfx_lerp (gfxv4 *out, gfxv4 *v1, gfxv4 *v2, float step, float amt)
@@ -485,10 +479,13 @@ void gfx_identity ()
   gfx_m4_ident(GFX.active);
 }
 
-void gfx_perspective (float fov, float a, float n, float f)
+void gfx_projection (float fov, float ar, float np)
 {
-  fov = ((fov * GFX_PI) / 180.0f);
-  gfx_m4_perspective(GFX.active, fov, a, n, f);
+  float f = (fov * GFX_PI) / 180.0f;
+
+  GFX.near_plane = np;
+  GFX.y_scale = 1.0 / tanf(f / 2);
+  GFX.x_scale = GFX.y_scale / ar;
 }
 
 void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
@@ -652,7 +649,7 @@ void gfx_draw_arrays (int start, int end)
 {
   gfxvert *pv1, *pv2, *pv3;
   gfxv2 *v1, *v2, *v3;
-  gfxm4 mv, mvp;
+  gfxm4 mv;
   gfxv4 tmp;
   int i, vidx, pidx, vsize, isize;
   gfxvert *pipe = (gfxvert *)&GFX.vertex_pipe;
@@ -665,11 +662,10 @@ void gfx_draw_arrays (int start, int end)
   pidx = 0;
 
   gfx_m4_mult(&mv, &GFX.view, &GFX.model);
-  gfx_m4_mult(&mvp, &GFX.projection, &mv);
 
   for (i = 0; i < vsize; i+=3) {
     gfx_v4_init(&tmp, GFX.vertices[i], GFX.vertices[i+1], GFX.vertices[i+2], 1);
-    gfx_v4_mult(&pipe[vidx].camera_space, &tmp, &mvp);
+    gfx_v4_mult(&pipe[vidx].camera_space, &tmp, &mv);
     gfx_clip_flags(vidx++);
   }
 
@@ -722,8 +718,8 @@ void gfx_draw_arrays (int start, int end)
       } else if (pv1->clip_flags & 1) { \
         gfx_lerp(vp1, p3, p1, fabs(p1->z - p3->z), p3->z - GFX.near_plane); \
         gfx_lerp(vp2, p2, p1, fabs(p1->z - p2->z), p2->z - GFX.near_plane); \
-        gfx_add_visible_indexed(pidx++, i3, v2, v1, i, brightness); \
-        gfx_add_visible_indexed(pidx++, i3, i2, v2, i, brightness); \
+        gfx_add_visible_indexed(pidx++, i3, v1, v2, i, brightness); \
+        gfx_add_visible_indexed(pidx++, i2, i3, v2, i, brightness); \
       } \
     }
 

@@ -97,9 +97,8 @@ int main (int argc, char **argv)
   gfx_bind_depth_buffer(zbuf);
 
   while (!window.quit) {
-    gfx_matrix_mode(GFX_PROJECTION_MATRIX);
-    gfx_perspective(fov, (float)width / (float)height, 1, 1000.0);
-
+    gfx_projection(fov, (float)width / (float)height, 1);
+    
     gfx_matrix_mode(GFX_VIEW_MATRIX);
 
     start = SDL_GetTicks();

@@ -36,7 +36,7 @@ void draw_frame ()
 
 int main (void) {
   window_t window;
-  int width = 960, height = 540;
+  int width = 1280, height = 720;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;
@@ -53,11 +53,9 @@ int main (void) {
   gfx_init();
   gfx_bind_render_target(buf, width, height);
   gfx_bind_depth_buffer(zbuf);
+  gfx_projection(fov, (float)width / (float)height, 1);
 
   while (!window.quit) {
-    gfx_matrix_mode(GFX_PROJECTION_MATRIX);
-    gfx_perspective(fov, (float)width / (float)height, 1, 1000.0);
-
     start = SDL_GetTicks();
 
     draw_frame();
@@ -67,7 +65,6 @@ int main (void) {
     sprintf(debug_string, "frame: %dms", frame);
 
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
-    gfx_draw_text_8x8(ascii, "Welcome to game.", 16, width / 2 - 64, height / 2 - 4);
 
     window_update(&window, buf);
 
