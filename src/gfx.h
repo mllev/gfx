@@ -365,6 +365,7 @@ static void gfx_calculate_normal (gfxnormal* normal, gfxvert *v1, gfxvert *v2, g
 {
   gfxv4 tmp1, tmp2;
   float cx, cy, cz;
+  float c = 1.0 / 3.0;
 
   gfx_v4_sub(&tmp1, &v2->camera_space, &v1->camera_space);
   gfx_v4_sub(&tmp2, &v3->camera_space, &v1->camera_space);
@@ -372,9 +373,9 @@ static void gfx_calculate_normal (gfxnormal* normal, gfxvert *v1, gfxvert *v2, g
   gfx_v4_crossp(&normal->dir, &tmp2, &tmp1);
   gfx_v4_normalize(&normal->dir, &normal->dir);
 
-  cx = (v1->camera_space.x + v2->camera_space.x + v3->camera_space.y) / 3;
-  cy = (v1->camera_space.y + v2->camera_space.y + v3->camera_space.y) / 3;
-  cz = (v1->camera_space.y + v2->camera_space.y + v3->camera_space.y) / 3;
+  cx = (v1->camera_space.x + v2->camera_space.x + v3->camera_space.y) * c;
+  cy = (v1->camera_space.y + v2->camera_space.y + v3->camera_space.y) * c;
+  cz = (v1->camera_space.y + v2->camera_space.y + v3->camera_space.y) * c;
 
   gfx_v4_init(&normal->center, cx, cy, cz, 1.0);
 }
