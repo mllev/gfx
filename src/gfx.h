@@ -16,8 +16,7 @@ typedef unsigned int u32;
 #endif
 
 #define GFX_MODEL_MATRIX 1
-#define GFX_PROJECTION_MATRIX 2
-#define GFX_VIEW_MATRIX 3
+#define GFX_VIEW_MATRIX 2
 
 #define GFX_FLAT_FILL_MODE 0
 #define GFX_WIREFRAME_MODE 1
@@ -93,7 +92,6 @@ struct _gfx {
 
   gfxm4 model;
   gfxm4 view;
-  gfxm4 projection;
   gfxm4 transform;
 
   gfxm4* active;
@@ -120,7 +118,7 @@ void gfx_rotate(float, float, float, float);
 void gfx_translate(float, float, float);
 void gfx_scale(float, float, float);
 void gfx_identity(void);
-void gfx_projection(float, float, float);
+void gfx_set_projection(float, float, float);
 
 #ifdef GFX_IMPLEMENT
 
@@ -392,7 +390,6 @@ int gfx_init ()
 
   gfx_m4_ident(&GFX.model);
   gfx_m4_ident(&GFX.view);
-  gfx_m4_ident(&GFX.projection);
 
   GFX.draw_mode = GFX_FLAT_FILL_MODE;
 
@@ -419,9 +416,6 @@ void gfx_matrix_mode (int m)
     break;
     case GFX_VIEW_MATRIX:
       GFX.active = &GFX.view;
-    break;
-    case GFX_PROJECTION_MATRIX:
-      GFX.active = &GFX.projection;
     break;
   }
 }
@@ -477,7 +471,7 @@ void gfx_identity ()
   gfx_m4_ident(GFX.active);
 }
 
-void gfx_projection (float fov, float ar, float np)
+void gfx_set_projection (float fov, float ar, float np)
 {
   float f = (fov * GFX_PI) / 180.0f;
 

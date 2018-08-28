@@ -125,7 +125,7 @@ int main (int argc, char **argv)
   gfx_bind_depth_buffer(zbuf);
 
   while (!window.quit) {
-    gfx_projection(fov, (float)width / (float)height, 50);
+    gfx_set_projection(fov, (float)width / (float)height, 50);
 
     gfx_matrix_mode(GFX_VIEW_MATRIX);
 

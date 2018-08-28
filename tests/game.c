@@ -53,7 +53,7 @@ int main (void) {
   gfx_init();
   gfx_bind_render_target(buf, width, height);
   gfx_bind_depth_buffer(zbuf);
-  gfx_projection(fov, (float)width / (float)height, 1);
+  gfx_set_projection(fov, (float)width / (float)height, 1);
 
   while (!window.quit) {
     start = SDL_GetTicks();
