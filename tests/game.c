@@ -8,9 +8,27 @@
 #define WINDOW_IMPLEMENT
 #include "../src/window.h"
 
+#define BMPREAD_IMPLEMENT
+#include "../deps/bmpread.h"
+
 #include "../src/geometry.h"
 
-void draw_frame ()
+float cube_uvs[] = {
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 0.0
+};
+
+void draw_frame (unsigned int *texture)
 {
   gfx_matrix_mode(GFX_VIEW_MATRIX);
   gfx_identity();
@@ -22,7 +40,9 @@ void draw_frame ()
   gfx_translate(10, 0, 25);
   gfx_scale(3, 6, 3);
   gfx_translate(-0.5, -0.5, -0.5);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, NULL);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_attr(GFX_ATTR_UV, cube_uvs);
+  gfx_bind_texture(texture, 64, 64);
   gfx_draw_arrays(0, -1);
 
   gfx_matrix_mode(GFX_MODEL_MATRIX);
@@ -30,8 +50,33 @@ void draw_frame ()
   gfx_translate(0, -3, 25);
   gfx_scale(25, 3, 25);
   gfx_translate(-0.5, -0.5, -0.5);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, NULL);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_attr(GFX_ATTR_COLOR, NULL);
   gfx_draw_arrays(0, -1);
+}
+
+unsigned int* load_texture (const char *file)
+{ 
+  int x, y, w = 64, h = 64;
+  bmpread_t bmp1;
+  unsigned int *texture;
+  if (bmpread(file, 0, &bmp1)) {
+    texture = malloc(sizeof(unsigned int) * bmp1.width * bmp1.height);
+    for (x = 0; x < w; x++) {
+      for (y = 0; y < h; y++) {
+        int idx = w * y + x;
+        int r = bmp1.rgb_data[idx*3];
+        int g = bmp1.rgb_data[idx*3+1];
+        int b = bmp1.rgb_data[idx*3+2];
+
+        texture[idx] = (255 << 24) | (r << 16) | (g << 8) | b;
+      }
+    }
+    return texture;
+  } else {
+    printf("No file.\n");
+    return NULL;
+  }
 }
 
 int main (void) {
@@ -42,6 +87,9 @@ int main (void) {
   float fov = 70;
   unsigned int frame, start;
   char debug_string[50];
+
+  /* please figure out why relative paths don't work */
+  unsigned int* texture = load_texture("/Users/matthewlevenstein/Desktop/projects/gfx/textures/wood.bmp");
 
   buf = (unsigned int *)malloc((width * height) * sizeof(unsigned int));
   zbuf = (float *)malloc((width * height) * sizeof(float));
@@ -58,7 +106,7 @@ int main (void) {
   while (!window.quit) {
     start = SDL_GetTicks();
 
-    draw_frame();
+    draw_frame(texture);
 
     frame = SDL_GetTicks() - start;
 

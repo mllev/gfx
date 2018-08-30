@@ -1,7 +1,7 @@
 #ifndef _GFX_H
 #define _GFX_H
 
-#include <math.h> /* sinf cosf fabs abs */
+#include <math.h> /* sinf cosf fabs */
 
 typedef unsigned int u32;
 
@@ -20,6 +20,9 @@ typedef unsigned int u32;
 
 #define GFX_FLAT_FILL_MODE 0
 #define GFX_WIREFRAME_MODE 1
+
+#define GFX_ATTR_COLOR 0
+#define GFX_ATTR_UV 1
 
 #define GFX_FRACBITS 16
 #define gfx_fixed16(x) ((u32)(x * 65535))
@@ -57,10 +60,10 @@ struct _gfxvert {
 };
 
 struct _gfxedge {
-  float x;
-  float x_step;
-  float z;
-  float z_step;
+  float x, x_step;
+  float z, z_step;
+  float u, u_step;
+  float v, v_step;
   int y_start;
   int y_end;
 };
@@ -68,6 +71,7 @@ struct _gfxedge {
 struct _gfxpoly {
   int v1, v2, v3;
   float r, g, b;
+  int uvs;
 };
 
 struct _gfx {
@@ -77,9 +81,14 @@ struct _gfx {
   int target_width;
   int target_height;
 
+  int texture_width;
+  int texture_height;
+
+  u32* texture;
   float *vertices;
   int *indices;
   float *colors;
+  float *uvs;
 
   int vertex_count;
   int index_count;
@@ -106,7 +115,9 @@ void gfx_clear(void);
 
 void gfx_bind_render_target(u32*, int, int);
 void gfx_bind_depth_buffer(float*);
-void gfx_bind_arrays(float*, int, int*, int, float*);
+void gfx_bind_arrays(float*, int, int*, int);
+void gfx_bind_attr(int, float*);
+void gfx_bind_texture(u32*, int, int);
 
 void gfx_draw_arrays(int, int);
 void gfx_draw_text_8x8(char[][8], const char *, int, int, int);
@@ -339,14 +350,18 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c, float
   GFX.visible[i].v2 = v2;
   GFX.visible[i].v3 = v3;
 
-  if (GFX.colors) {
+  if (GFX.uvs) {
+    GFX.visible[i].uvs = c * 2; /* because there are 6 numbers per face for the uvs and 3 for the colors */
+  } else if (GFX.colors) {
     GFX.visible[i].r = GFX.colors[c+0] * brightness;
     GFX.visible[i].g = GFX.colors[c+1] * brightness;
     GFX.visible[i].b = GFX.colors[c+2] * brightness;
+    GFX.visible[i].uvs = -1;
   } else {
     GFX.visible[i].r = 1.0 * brightness;
     GFX.visible[i].g = 1.0 * brightness;
     GFX.visible[i].b = 1.0 * brightness;
+    GFX.visible[i].uvs = -1;
   }
 }
 
@@ -389,8 +404,11 @@ int gfx_init ()
   memset(__GFX, 0, sizeof(struct _gfx));
 #endif
 
-  gfx_m4_ident(&GFX.model);
-  gfx_m4_ident(&GFX.view);
+  GFX.vertices = NULL;
+  GFX.indices = NULL;
+  GFX.uvs = NULL;
+  GFX.colors = NULL;
+  GFX.texture = NULL;
 
   GFX.draw_mode = GFX_FLAT_FILL_MODE;
 
@@ -433,14 +451,34 @@ void gfx_bind_depth_buffer (float *depth_buffer)
   GFX.depth_buffer = depth_buffer;
 }
 
-void gfx_bind_arrays (float *vertices, int vsize, int *indices, int isize, float *colors)
+void gfx_bind_arrays (float *vertices, int vsize, int *indices, int isize)
 {
   GFX.vertices = vertices;
   GFX.indices = indices;
-  GFX.colors = colors;
 
   GFX.vertex_count = vsize;
   GFX.index_count = isize;
+}
+
+void gfx_bind_attr (int attr, float *data)
+{
+  switch (attr) {
+    case GFX_ATTR_COLOR:
+      GFX.colors = data;
+      GFX.uvs = NULL;
+    break;
+    case GFX_ATTR_UV:
+      GFX.uvs = data;
+      GFX.colors = NULL;
+    break;
+  }
+}
+
+void gfx_bind_texture (u32 *texture, int width, int height)
+{
+  GFX.texture = texture;
+  GFX.texture_width = width;
+  GFX.texture_height = height;
 }
 
 void gfx_rotate (float x, float y, float z, float a)
@@ -513,14 +551,19 @@ void gfx_draw_line (float x1, float y1, float x2, float y2, u32 color)
   } while (++count < max);
 }
 
-static void gfx_draw_span (float x1, float x2, float z1, float z2, int y, unsigned int color)
+static void gfx_draw_span_flat (gfxedge *e1, gfxedge *e2, int y, unsigned int color)
 {
   int sx1, sx2;
   unsigned int *dst, *max, offs;
   float *zbuf, z, zstep;
 
-  sx1 = (int)ceil(x1);
-  sx2 = (int)ceil(x2);
+  float x1 = e1->x;
+  float x2 = e2->x;
+  float z1 = e1->z;
+  float z2 = e2->z;
+
+  sx1 = (int)ceil(x1 - 0.5);
+  sx2 = (int)ceil(x2 - 0.5);
 
   z = z1;
   zstep = (z2 - z1) / (x2 - x1);
@@ -550,7 +593,72 @@ static void gfx_draw_span (float x1, float x2, float z1, float z2, int y, unsign
   }
 }
 
-static void gfx_scan_edges(gfxedge *e1, gfxedge *e2, int left, unsigned int color)
+static void gfx_draw_span_textured (gfxedge *e1, gfxedge *e2, int y)
+{
+  int sx1, sx2;
+  unsigned int *dst, *max, offs;
+  float *zbuf, z, u, v;
+  float zstep, ustep, vstep;
+  float xdinv;
+
+  float x1 = e1->x;
+  float x2 = e2->x;
+  float z1 = e1->z;
+  float z2 = e2->z;
+  float u1 = e1->u;
+  float u2 = e2->u;
+  float v1 = e1->v;
+  float v2 = e2->v;
+
+  int tw = GFX.texture_width;
+  int th = GFX.texture_height;
+  int tu, tv;
+
+  sx1 = (int)ceil(x1 - 0.5);
+  sx2 = (int)ceil(x2 - 0.5);
+
+  u = u1;
+  v = v1;
+  z = z1;
+
+  xdinv = 1.0 / (x2 - x1);
+  zstep = (z2 - z1) * xdinv;
+  ustep = (u2 - u1) * xdinv;
+  vstep = (v2 - v1) * xdinv;
+
+  /* @todo: temporary until screen clipping */
+  if (sx1 > GFX.target_width - 1 || sx2 < 0 || y < 0 || y > GFX.target_height - 1) return;
+  if (sx2 > GFX.target_width) sx2 = GFX.target_width;
+  if (sx1 < 0) {
+    z += (zstep * -(sx1));
+    u += (ustep * -(sx1));
+    v += (vstep * -(sx1));
+    sx1 = 0;
+  }
+
+  offs = GFX.target_width * y;
+  dst = GFX.target + offs + sx1;
+  max = GFX.target + offs + sx2;
+  zbuf = GFX.depth_buffer + offs + sx1;
+
+  while (dst < max) {
+    if (z > *zbuf) {
+      tu = (int)((u / z) * tw) % tw;
+      tv = (int)((v / z) * th) % th;
+      *dst = GFX.texture[tv * GFX.texture_width + tu];
+      *zbuf = z;
+    }
+
+    dst++;
+    zbuf++;
+
+    z += zstep;
+    u += ustep;
+    v += vstep;
+  }
+}
+
+static void gfx_scan_edges_textured (gfxedge *e1, gfxedge *e2, int left)
 {
   gfxedge *tmp;
   int y1, y2, i;
@@ -561,7 +669,32 @@ static void gfx_scan_edges(gfxedge *e1, gfxedge *e2, int left, unsigned int colo
   if (left) { tmp = e1; e1 = e2; e2 = tmp; }
 
   for (i = y1; i < y2; i++) {
-    gfx_draw_span(e1->x, e2->x, e1->z, e2->z, i, color);
+    gfx_draw_span_textured(e1, e2, i);
+    
+    e1->x += e1->x_step;
+    e1->z += e1->z_step;
+    e1->u += e1->u_step;
+    e1->v += e1->v_step;
+
+    e2->x += e2->x_step;
+    e2->z += e2->z_step;
+    e2->u += e2->u_step;
+    e2->v += e2->v_step;
+  }
+}
+
+static void gfx_scan_edges_flat (gfxedge *e1, gfxedge *e2, int left, unsigned int color)
+{
+  gfxedge *tmp;
+  int y1, y2, i;
+
+  y1 = e2->y_start;
+  y2 = e2->y_end;
+
+  if (left) { tmp = e1; e1 = e2; e2 = tmp; }
+
+  for (i = y1; i < y2; i++) {
+    gfx_draw_span_flat(e1, e2, i, color);
     
     e1->x += e1->x_step;
     e1->z += e1->z_step;
@@ -570,67 +703,111 @@ static void gfx_scan_edges(gfxedge *e1, gfxedge *e2, int left, unsigned int colo
   }
 }
 
-static void gfx_init_edge (gfxedge* e, gfxv2* v1, gfxv2* v2, float z1, float z2)
+static void gfx_init_edge (
+  gfxedge* e, gfxv2* vert1, gfxv2* vert2, 
+  float u1, float u2, float v1, float v2, float z1, float z2
+)
 {
-  float yd = v2->y - v1->y;
-  float xd = v2->x - v1->x;
+  float yd = vert2->y - vert1->y;
+  float xd = vert2->x - vert1->x;
+  float ud = u2 - u1;
+  float vd = v2 - v1;
   float zd = z2 - z1;
-  float prestep, fxstep, fzstep;
+  float prestep, fxstep, fzstep, fustep, fvstep;
 
-  e->y_start = (int)ceil(v1->y);
-  e->y_end = (int)ceil(v2->y);
+  e->y_start = (int)ceil(vert1->y);
+  e->y_end = (int)ceil(vert2->y);
 
-  prestep = ((float)e->y_start - v1->y);
+  prestep = ((float)e->y_start - vert1->y);
 
   fxstep = xd / yd;
   fzstep = zd / yd;
+  fustep = ud / yd;
+  fvstep = vd / yd;
 
-  e->x = v1->x + prestep * fxstep;
+  e->x = vert1->x + prestep * fxstep;
+
   e->z = z1 + prestep * fzstep;
+  e->u = u1 + prestep * fustep;
+  e->v = u1 + prestep * fvstep;
 
   e->x_step = fxstep;
   e->z_step = fzstep;
+  e->u_step = fustep;
+  e->v_step = fvstep;
 }
 
-void gfx_draw_triangle_flat (gfxpoly *tri)
+void gfx_draw_triangle (gfxpoly *tri)
 {
-  gfxv2 *v1, *v2, *v3, *tmp;
+  gfxv2 *vert1, *vert2, *vert3, *tmp;
   gfxedge e1, e2, e3;
   float area;
-  float z1, z2, z3, tz;
+  float z1, z2, z3, tv;
   unsigned int color;
   int r, g, b;
+  float u1, v1, u2, v2, u3, v3;
 
-  r = (int)(tri->r * 255) << 16;
-  g = (int)(tri->g * 255) <<  8;
-  b = (int)(tri->b * 255) <<  0;
+  if (tri->uvs != -1) {
+    u1 = GFX.uvs[tri->uvs+0];
+    v1 = GFX.uvs[tri->uvs+1];
+    u2 = GFX.uvs[tri->uvs+2];
+    v2 = GFX.uvs[tri->uvs+3];
+    u3 = GFX.uvs[tri->uvs+4];
+    v3 = GFX.uvs[tri->uvs+5];
+  } else {
+    r = (int)(tri->r * 255) << 16;
+    g = (int)(tri->g * 255) <<  8;
+    b = (int)(tri->b * 255) <<  0;
+    color = (255 << 24) | r | g | b;
+    u1 = v1 = u2 = v2 = u3 = v3 = 0;
+  }
 
-  v1 = &GFX.vertex_pipe[tri->v1].screen_space;
-  v2 = &GFX.vertex_pipe[tri->v2].screen_space;
-  v3 = &GFX.vertex_pipe[tri->v3].screen_space;
+  vert1 = &GFX.vertex_pipe[tri->v1].screen_space;
+  vert2 = &GFX.vertex_pipe[tri->v2].screen_space;
+  vert3 = &GFX.vertex_pipe[tri->v3].screen_space;
 
   z1 = 1.0 / GFX.vertex_pipe[tri->v1].camera_space.z;
   z2 = 1.0 / GFX.vertex_pipe[tri->v2].camera_space.z;
   z3 = 1.0 / GFX.vertex_pipe[tri->v3].camera_space.z;
 
-  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; tz = z1; z1 = z2; z2 = tz; }
-  if (v3->y < v2->y) { tmp = v2; v2 = v3; v3 = tmp; tz = z2; z2 = z3; z3 = tz; }
-  if (v2->y < v1->y) { tmp = v1; v1 = v2; v2 = tmp; tz = z1; z1 = z2; z2 = tz; }
+  if (vert2->y < vert1->y) {
+    tmp = vert1; vert1 = vert2; vert2 = tmp;
+    tv = z1; z1 = z2; z2 = tv;
+    tv = u1; u1 = u2; u2 = tv;
+    tv = v1; v1 = v2; v2 = tv;
+  }
 
-  area = gfx_v2_area(v1, v3, v2);
+  if (vert3->y < vert2->y) {
+    tmp = vert2; vert2 = vert3; vert3 = tmp;
+    tv = z2; z2 = z3; z3 = tv;
+    tv = u2; u2 = u3; u3 = tv;
+    tv = v2; v2 = v3; v3 = tv;
+  }
 
-  gfx_init_edge(&e1, v1, v3, z1, z3);
-  gfx_init_edge(&e2, v1, v2, z1, z2);
-  gfx_init_edge(&e3, v2, v3, z2, z3);
+  if (vert2->y < vert1->y) {
+    tmp = vert1; vert1 = vert2; vert2 = tmp;
+    tv = z1; z1 = z2; z2 = tv;
+    tv = u1; u1 = u2; u2 = tv;
+    tv = v1; v1 = v2; v2 = tv;
+  }
+
+  area = gfx_v2_area(vert1, vert3, vert2);
 
   if (area == 0) {
     return;
   }
 
-  color = (255 << 24) | r | g | b;
+  gfx_init_edge(&e1, vert1, vert3, u1, u3, v1, v3, z1, z3);
+  gfx_init_edge(&e2, vert1, vert2, u1, u2, v1, v2, z1, z2);
+  gfx_init_edge(&e3, vert2, vert3, u2, u3, v2, v3, z2, z3);
 
-  gfx_scan_edges(&e1, &e2, area > 0, color);
-  gfx_scan_edges(&e1, &e3, area > 0, color);
+  if (tri->uvs != -1) {
+    gfx_scan_edges_textured(&e1, &e2, area > 0);
+    gfx_scan_edges_textured(&e1, &e3, area > 0);
+  } else {
+    gfx_scan_edges_flat(&e1, &e2, area > 0, color);
+    gfx_scan_edges_flat(&e1, &e3, area > 0, color);
+  }
 }
 
 void gfx_draw_mode (int mode)
@@ -644,7 +821,7 @@ void gfx_draw_arrays (int start, int end)
   gfxv2 *v1, *v2, *v3;
   gfxm4 mv;
   gfxv4 tmp;
-  int i, vidx, pidx, vsize, isize;
+  int i, vidx, pidx, vsize, isize, uvidx;
   gfxvert *pipe = (gfxvert *)&GFX.vertex_pipe;
   float brightness;
 
@@ -653,6 +830,7 @@ void gfx_draw_arrays (int start, int end)
 
   vidx = 0;
   pidx = 0;
+  uvidx = start * 6;
 
   gfx_m4_mult(&mv, &GFX.view, &GFX.model);
 
@@ -662,7 +840,7 @@ void gfx_draw_arrays (int start, int end)
     gfx_clip_flags(vidx++);
   }
 
-  for (i = start; i < isize; i+=3) {
+  for (i = start; i < isize; i+=3, uvidx+=6) {
     int i1 = GFX.indices[i+0];
     int i2 = GFX.indices[i+1];
     int i3 = GFX.indices[i+2];
@@ -758,7 +936,7 @@ void gfx_draw_arrays (int start, int end)
     for (i = 0; i < pidx; i++) {
       /* @todo: screen clip */
       if (!gfx_is_backfacing(&GFX.visible[i])) {
-        gfx_draw_triangle_flat(&GFX.visible[i]);
+        gfx_draw_triangle(&GFX.visible[i]);
       }
     }
   }

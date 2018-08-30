@@ -124,6 +124,9 @@ int main (int argc, char **argv)
   gfx_bind_render_target(buf, width, height);
   gfx_bind_depth_buffer(zbuf);
 
+  gfx_matrix_mode(GFX_VIEW_MATRIX);
+  gfx_identity();
+
   while (!window.quit) {
     gfx_set_projection(fov, (float)width / (float)height, 50);
 
@@ -151,12 +154,13 @@ int main (int argc, char **argv)
     gfx_identity();
     gfx_rotate(0, 1, 0, -(GFX_PI / 2));
     gfx_scale(100, 200, 100);
-    gfx_bind_arrays(mesh_vertices, mesh_num_vertices, mesh_indices, mesh_num_indices, mesh_colors);
+    gfx_bind_arrays(mesh_vertices, mesh_num_vertices, mesh_indices, mesh_num_indices);
+    gfx_bind_attr(GFX_ATTR_COLOR, mesh_colors);
     gfx_draw_arrays(0, -1);
 
     frame = SDL_GetTicks() - start;
 
-    sprintf(debug_string, "frame: %dms", frame);
+    sprintf(debug_string, "fps: %f", 1000 / (float)frame);
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
     sprintf(debug_string, "fov: %f", fov);
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 10);

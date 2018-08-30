@@ -45,7 +45,8 @@ void draw_cube (float rotate_amt, float x, float y, float z)
   gfx_scale(10, 10, 10); /* step 2: make larger */
   gfx_translate(-0.5, -0.5, -0.5); /* step 1: move to center */
 
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12, cube_colors);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_attr(GFX_ATTR_COLOR, cube_colors);
   gfx_draw_arrays(0, -1);
 }
 
@@ -95,6 +96,9 @@ int main (int argc, char **argv)
   gfx_init();
   gfx_bind_render_target(buf, width, height);
   gfx_bind_depth_buffer(zbuf);
+
+  gfx_matrix_mode(GFX_VIEW_MATRIX);
+  gfx_identity();
 
   while (!window.quit) {
     gfx_set_projection(fov, (float)width / (float)height, 1);
