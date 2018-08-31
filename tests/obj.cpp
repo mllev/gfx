@@ -128,7 +128,7 @@ int main (int argc, char **argv)
   gfx_identity();
 
   while (!window.quit) {
-    gfx_set_projection(fov, (float)width / (float)height, 50);
+    gfx_set_projection(fov, (float)width / (float)height, 1);
 
     gfx_matrix_mode(GFX_VIEW_MATRIX);
 

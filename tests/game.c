@@ -41,8 +41,7 @@ void draw_frame (unsigned int *texture)
   gfx_scale(3, 6, 3);
   gfx_translate(-0.5, -0.5, -0.5);
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-  gfx_bind_attr(GFX_ATTR_UV, cube_uvs);
-  gfx_bind_texture(texture, 64, 64);
+  gfx_bind_attr(GFX_ATTR_COLOR, NULL);
   gfx_draw_arrays(0, -1);
 
   gfx_matrix_mode(GFX_MODEL_MATRIX);
