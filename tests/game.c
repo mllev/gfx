@@ -18,6 +18,7 @@ struct {
     float x, y, z;
     float speed;
   } camera;
+
   struct {
     float x, y, z;
     float speed;
@@ -26,31 +27,42 @@ struct {
     int is_moving_forwards;
     int is_moving_backwards;
   } player;
+
 } STATE;
 
-float cube_colors[] = {
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847,
-  .349, .647, .847
-};
+float blue_color[]  = { 0.349, 0.647, 0.847, };
+float white_color[] = { 1.0, 1.0, 1.0 };
+float brown_color[] = { 0.573, 0.416, 0.176 };
 
 void draw_board ()
 {
   gfx_matrix_mode(GFX_MODEL_MATRIX);
   gfx_identity();
-  gfx_translate(0, 0, 0);
   gfx_scale(30, 1, 30);
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-  gfx_bind_attr(GFX_ATTR_COLOR, cube_colors);
+  gfx_bind_attr(GFX_ATTR_RGB, blue_color);
+  gfx_draw_arrays(0, -1);
+}
+
+void draw_exit ()
+{
+  gfx_matrix_mode(GFX_MODEL_MATRIX);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_attr(GFX_ATTR_RGB, brown_color);
+
+  gfx_identity();
+  gfx_translate(9, 1, 30);
+  gfx_scale(3, 6, 3);
+  gfx_draw_arrays(0, -1);
+
+  gfx_identity();
+  gfx_translate(15, 1, 30);
+  gfx_scale(3, 6, 3);
+  gfx_draw_arrays(0, -1);
+
+  gfx_identity();
+  gfx_translate(12, 4, 30);
+  gfx_scale(3, 3, 3);
   gfx_draw_arrays(0, -1);
 }
 
@@ -93,7 +105,7 @@ void draw_player ()
   gfx_translate(STATE.player.x, STATE.player.y, STATE.player.z);
   gfx_scale(3, 3, 3);
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-  gfx_bind_attr(GFX_ATTR_COLOR, NULL);
+  gfx_bind_attr(GFX_ATTR_RGB, white_color);
   gfx_draw_arrays(0, -1);
 }
 
@@ -101,18 +113,21 @@ void draw_frame ()
 {
   gfx_matrix_mode(GFX_VIEW_MATRIX);
   gfx_identity();
-  gfx_rotate(1, 0, 0, -GFX_PI / 5);
+  gfx_rotate(1, 0, 0, -1.01);
   gfx_translate(-STATE.camera.x, -STATE.camera.y, -STATE.camera.z);
 
   draw_player();
   draw_board();
+  draw_exit();
 }
 
 void init_game ()
 {
   memset(&STATE, 0, sizeof(STATE));
 
-  STATE.camera.y = 10;
+  STATE.camera.y = 30;
+  STATE.camera.x = 15;
+  STATE.camera.z = -7;
   STATE.camera.speed = 0.1;
 
   STATE.player.y = 1;
@@ -148,7 +163,7 @@ int main (void) {
   int width = 1280, height = 720;
   unsigned int* buf;
   float *zbuf;
-  float fov = 90;
+  float fov = 60;
   unsigned int frame, start;
   char debug_string[50];
 

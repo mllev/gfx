@@ -64,9 +64,9 @@ void draw_cube (float rotate_amt, float x, float y, float z, unsigned int *textu
   gfx_translate(-0.5, -0.5, -0.5); /* step 1: move to center */
 
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-  gfx_bind_attr(GFX_ATTR_UV, cube_uvs);
+  gfx_bind_attr(GFX_ATTR_UVS, cube_uvs);
   gfx_bind_texture(texture, 64, 64);
-  /* gfx_bind_attr(GFX_ATTR_COLOR, cube_colors); */
+  /* gfx_bind_attr(GFX_ATTR_COLORS, cube_colors); */
   gfx_draw_arrays(0, -1);
 }
 

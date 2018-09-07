@@ -21,8 +21,9 @@ typedef unsigned int u32;
 #define GFX_FLAT_FILL_MODE 0
 #define GFX_WIREFRAME_MODE 1
 
-#define GFX_ATTR_COLOR 0
-#define GFX_ATTR_UV 1
+#define GFX_ATTR_RGB 0
+#define GFX_ATTR_COLORS 1
+#define GFX_ATTR_UVS 2
 
 #define GFX_FRACBITS 16
 #define gfx_fixed16(x) ((u32)(x * 65535))
@@ -90,6 +91,10 @@ struct _gfx {
   int *indices;
   float *colors;
   float *uvs;
+
+  struct {
+    float r, g, b;
+  } solid_color;
 
   int vertex_count;
   int index_count;
@@ -361,9 +366,9 @@ static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c, float
     GFX.visible[i].uvs = -1;
     GFX.visible[i].brightness = brightness;
   } else {
-    GFX.visible[i].r = 1.0;
-    GFX.visible[i].g = 1.0;
-    GFX.visible[i].b = 1.0;
+    GFX.visible[i].r = GFX.solid_color.r;
+    GFX.visible[i].g = GFX.solid_color.g;
+    GFX.visible[i].b = GFX.solid_color.b;
     GFX.visible[i].uvs = -1;
     GFX.visible[i].brightness = brightness;
   }
@@ -413,6 +418,10 @@ int gfx_init ()
   GFX.uvs = NULL;
   GFX.colors = NULL;
   GFX.texture = NULL;
+
+  GFX.solid_color.r = 1.0;
+  GFX.solid_color.g = 1.0;
+  GFX.solid_color.b = 1.0;
 
   GFX.draw_mode = GFX_FLAT_FILL_MODE;
 
@@ -467,11 +476,18 @@ void gfx_bind_arrays (float *vertices, int vsize, int *indices, int isize)
 void gfx_bind_attr (int attr, float *data)
 {
   switch (attr) {
-    case GFX_ATTR_COLOR:
+    case GFX_ATTR_RGB:
+      GFX.solid_color.r = data[0];
+      GFX.solid_color.g = data[1];
+      GFX.solid_color.b = data[2];
+      GFX.uvs = NULL;
+      GFX.colors = NULL;
+    break;
+    case GFX_ATTR_COLORS:
       GFX.colors = data;
       GFX.uvs = NULL;
     break;
-    case GFX_ATTR_UV:
+    case GFX_ATTR_UVS:
       GFX.uvs = data;
       GFX.colors = NULL;
     break;
@@ -566,8 +582,8 @@ static void gfx_draw_span_flat (gfxedge *e1, gfxedge *e2, int y, unsigned int co
   float z1 = e1->z;
   float z2 = e2->z;
 
-  sx1 = (int)ceil(x1 - 0.5);
-  sx2 = (int)ceil(x2 - 0.5);
+  sx1 = (int)floor(x1);
+  sx2 = (int)ceil(x2);
 
   z = z1;
   zstep = (z2 - z1) / (x2 - x1);
@@ -627,8 +643,8 @@ static void gfx_draw_span_textured (gfxedge *e1, gfxedge *e2, int y, float brigh
   int th = GFX.texture_height;
   int tu, tv;
 
-  sx1 = (int)ceil(x1 - 0.5);
-  sx2 = (int)ceil(x2 - 0.5);
+  sx1 = (int)ceil(x1);
+  sx2 = (int)ceil(x2);
 
   u = u1;
   v = v1;

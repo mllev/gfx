@@ -155,7 +155,7 @@ int main (int argc, char **argv)
     gfx_rotate(0, 1, 0, -(GFX_PI / 2));
     gfx_scale(100, 200, 100);
     gfx_bind_arrays(mesh_vertices, mesh_num_vertices, mesh_indices, mesh_num_indices);
-    gfx_bind_attr(GFX_ATTR_COLOR, mesh_colors);
+    gfx_bind_attr(GFX_ATTR_COLORS, mesh_colors);
     gfx_draw_arrays(0, -1);
 
     frame = SDL_GetTicks() - start;
