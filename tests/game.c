@@ -13,49 +13,114 @@
 
 #include "../src/geometry.h"
 
-float cube_uvs[] = {
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0
+struct {
+  struct {
+    float x, y, z;
+    float speed;
+  } camera;
+  struct {
+    float x, y, z;
+    float speed;
+    int is_moving_left;
+    int is_moving_right;
+    int is_moving_forwards;
+    int is_moving_backwards;
+  } player;
+} STATE;
+
+float cube_colors[] = {
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847,
+  .349, .647, .847
 };
 
-void draw_frame (unsigned int *texture)
+void draw_board ()
 {
-  gfx_matrix_mode(GFX_VIEW_MATRIX);
-  gfx_identity();
-  gfx_translate(0, -10, 0);
-  gfx_rotate(1, 0, 0, -GFX_PI / 5);
-
   gfx_matrix_mode(GFX_MODEL_MATRIX);
   gfx_identity();
-  gfx_translate(10, 0, 25);
-  gfx_scale(3, 6, 3);
-  gfx_translate(-0.5, -0.5, -0.5);
+  gfx_translate(0, 0, 0);
+  gfx_scale(30, 1, 30);
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-  gfx_bind_attr(GFX_ATTR_COLOR, NULL);
+  gfx_bind_attr(GFX_ATTR_COLOR, cube_colors);
   gfx_draw_arrays(0, -1);
+}
+
+void draw_player ()
+{
+  if (STATE.player.is_moving_forwards) {
+    STATE.player.z += STATE.player.speed;
+    if (STATE.player.z > 30 - 3) STATE.player.z = 30 - 3;
+    if (fmod(STATE.player.z, 3) == 0) {
+      STATE.player.is_moving_forwards = 0;
+    }
+  }
+
+  if (STATE.player.is_moving_backwards) {
+    STATE.player.z -= STATE.player.speed;
+    if (STATE.player.z < 0) STATE.player.z = 0;
+    if (fmod(STATE.player.z, 3) == 0) {
+      STATE.player.is_moving_backwards = 0;
+    }
+  }
+
+  if (STATE.player.is_moving_right) {
+    STATE.player.x += STATE.player.speed;
+    if (STATE.player.x > 30 - 3) STATE.player.x = 30 - 3;
+    if (fmod(STATE.player.x, 3) == 0) {
+      STATE.player.is_moving_right = 0;
+    }
+  }
+
+  if (STATE.player.is_moving_left) {
+    STATE.player.x -= STATE.player.speed;
+    if (STATE.player.x < 0) STATE.player.x = 0;
+    if (fmod(STATE.player.x, 3) == 0) {
+      STATE.player.is_moving_left = 0;
+    }
+  }
 
   gfx_matrix_mode(GFX_MODEL_MATRIX);
   gfx_identity();
-  gfx_translate(0, -3, 25);
-  gfx_scale(25, 3, 25);
-  gfx_translate(-0.5, -0.5, -0.5);
+  gfx_translate(STATE.player.x, STATE.player.y, STATE.player.z);
+  gfx_scale(3, 3, 3);
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
   gfx_bind_attr(GFX_ATTR_COLOR, NULL);
   gfx_draw_arrays(0, -1);
 }
 
+void draw_frame ()
+{
+  gfx_matrix_mode(GFX_VIEW_MATRIX);
+  gfx_identity();
+  gfx_rotate(1, 0, 0, -GFX_PI / 5);
+  gfx_translate(-STATE.camera.x, -STATE.camera.y, -STATE.camera.z);
+
+  draw_player();
+  draw_board();
+}
+
+void init_game ()
+{
+  memset(&STATE, 0, sizeof(STATE));
+
+  STATE.camera.y = 10;
+  STATE.camera.speed = 0.1;
+
+  STATE.player.y = 1;
+  STATE.player.speed = 0.5;
+}
+
 unsigned int* load_texture (const char *file)
-{ 
+{
   int x, y, w = 64, h = 64;
   bmpread_t bmp1;
   unsigned int *texture;
@@ -83,12 +148,9 @@ int main (void) {
   int width = 1280, height = 720;
   unsigned int* buf;
   float *zbuf;
-  float fov = 70;
+  float fov = 90;
   unsigned int frame, start;
   char debug_string[50];
-
-  /* please figure out why relative paths don't work */
-  unsigned int* texture = load_texture("/Users/matthewlevenstein/Desktop/projects/gfx/textures/wood.bmp");
 
   buf = (unsigned int *)malloc((width * height) * sizeof(unsigned int));
   zbuf = (float *)malloc((width * height) * sizeof(float));
@@ -102,19 +164,51 @@ int main (void) {
   gfx_bind_depth_buffer(zbuf);
   gfx_set_projection(fov, (float)width / (float)height, 1);
 
+  init_game();
+
   while (!window.quit) {
     start = SDL_GetTicks();
 
-    draw_frame(texture);
+    if (window.keys.w) {
+      STATE.camera.z += STATE.camera.speed;
+    }
+
+    if (window.keys.s) {
+      STATE.camera.z -= STATE.camera.speed;
+    }
+
+    if (window.keys.a) {
+      STATE.camera.x -= STATE.camera.speed;
+    }
+
+    if (window.keys.d) {
+      STATE.camera.x += STATE.camera.speed;
+    }
+
+    if (window.keys.up && !STATE.player.is_moving_forwards) {
+      STATE.player.is_moving_forwards = 1;
+    }
+
+    if (window.keys.down && !STATE.player.is_moving_backwards) {
+      STATE.player.is_moving_backwards = 1;
+    }
+
+    if (window.keys.left && !STATE.player.is_moving_left) {
+      STATE.player.is_moving_left = 1;
+    }
+
+    if (window.keys.right && !STATE.player.is_moving_right) {
+      STATE.player.is_moving_right = 1;
+    }
+
+    draw_frame();
 
     frame = SDL_GetTicks() - start;
 
     sprintf(debug_string, "frame: %dms", frame);
 
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
-
     window_update(&window, buf);
-
     gfx_clear();
   }
 

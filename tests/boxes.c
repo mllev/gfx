@@ -66,6 +66,7 @@ void draw_cube (float rotate_amt, float x, float y, float z, unsigned int *textu
   gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
   gfx_bind_attr(GFX_ATTR_UV, cube_uvs);
   gfx_bind_texture(texture, 64, 64);
+  /* gfx_bind_attr(GFX_ATTR_COLOR, cube_colors); */
   gfx_draw_arrays(0, -1);
 }
 
@@ -75,7 +76,7 @@ int random_number (int range)
   return (rand() % range) - half;
 }
 
-#define NUM_CUBES 1000
+#define NUM_CUBES 10000
 
 float cube_x_pos[NUM_CUBES];
 float cube_y_pos[NUM_CUBES];
@@ -107,8 +108,8 @@ unsigned int* load_texture (const char *file)
 
 int main (int argc, char **argv)
 {
-  int width = 640;
-  int height = 360;
+  int width = 960;
+  int height = 540;
   unsigned int* buf;
   float *zbuf;
   float fov = 70;
@@ -127,8 +128,8 @@ int main (int argc, char **argv)
   srand(time(NULL));
 
   for (i = 0; i < NUM_CUBES; i++) {
-    cube_x_pos[i] = random_number(NUM_CUBES / 2);
-    cube_z_pos[i] = random_number(NUM_CUBES / 2);
+    cube_x_pos[i] = random_number(NUM_CUBES / 4);
+    cube_z_pos[i] = random_number(NUM_CUBES / 4);
     cube_y_pos[i] = random_number(100);
   }
 
@@ -177,7 +178,7 @@ int main (int argc, char **argv)
 
     frame = SDL_GetTicks() - start;
 
-    sprintf(debug_string, "frame: %dms", frame);
+    sprintf(debug_string, "fps: %f", 1000.0 / (float)frame);
 
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
 

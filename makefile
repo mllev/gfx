@@ -1,13 +1,14 @@
 WARNS=-Wall -ansi -pedantic -std=c89
+LEVEL=-O3
 
 obj:
-	g++ tests/obj.cpp -O3 -framework SDL2 -o prog && ./prog
+	g++ tests/obj.cpp $(LEVEL) -framework SDL2 -o prog && ./prog
 
 boxes:
-	gcc tests/boxes.c -O3 $(WARNS) -framework SDL2 -o prog && ./prog
+	gcc tests/boxes.c $(LEVEL) $(WARNS) -framework SDL2 -o prog && ./prog
 
 game:
-	gcc tests/game.c -O3 $(WARNS) -framework SDL2 -o prog && ./prog
+	gcc tests/game.c $(LEVEL) $(WARNS) -framework SDL2 -o prog && ./prog
 
 debug:
 	gcc tests/boxes.c -O0 $(WARNS) -framework SDL2 -g -o prog && lldb prog

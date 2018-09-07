@@ -287,7 +287,7 @@ static float gfx_v2_area (gfxv2* v1, gfxv2* v2, gfxv2* v3)
 
 static float gfx_v4_dotp (gfxv4 *v1, gfxv4 *v2)
 {
-  return v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
+  return v1->x * v2->x + v1->y * v2->y + v1->z * v2->z + v1->w;
 }
 
 static void gfx_v4_sub (gfxv4 *out, gfxv4 *v1, gfxv4 *v2)
@@ -829,6 +829,21 @@ void gfx_draw_mode (int mode)
   GFX.draw_mode = mode;
 }
 
+
+float grow_amt = 0.0;
+
+
+static void gfx_vertex_shader (gfxv4 *out, gfxv4 *in, gfxm4 *mv, int index)
+{
+  gfx_v4_mult(out, in, mv);
+
+  // if (index % 2)
+  //   out->y += (sinf(grow_amt) * 5);
+  // else 
+  //   out->y += (cosf(grow_amt) * 5);
+
+}
+
 void gfx_draw_arrays (int start, int end)
 {
   gfxvert *pv1, *pv2, *pv3;
@@ -846,11 +861,15 @@ void gfx_draw_arrays (int start, int end)
   pidx = 0;
   uvidx = start * 6;
 
+
+  grow_amt += 0.05;
+
+
   gfx_m4_mult(&mv, &GFX.view, &GFX.model);
 
   for (i = 0; i < vsize; i+=3) {
     gfx_v4_init(&tmp, GFX.vertices[i], GFX.vertices[i+1], GFX.vertices[i+2], 1);
-    gfx_v4_mult(&pipe[vidx].camera_space, &tmp, &mv);
+    gfx_vertex_shader(&pipe[vidx].camera_space, &tmp, &mv, vidx);
     gfx_clip_flags(vidx++);
   }
 
