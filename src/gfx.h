@@ -310,14 +310,6 @@ static void gfx_m4_copy (gfxm4 *a, gfxm4 *b)
   a->_30 = b->_30; a->_31 = b->_31; a->_32 = b->_32; a->_33 = b->_33;
 }
 
-static void gfx_v4_copy (gfxv4 *a, gfxv4 *b)
-{
-  a->x = b->x;
-  a->y = b->y;
-  a->z = b->z;
-  a->w = b->w;
-}
-
 static void gfx_clip_flags (int id)
 {
   gfxv4 *camera = &GFX.vertex_pipe[id].camera_space;
@@ -582,7 +574,7 @@ static void gfx_draw_span_flat (gfxedge *e1, gfxedge *e2, int y, unsigned int co
   float z1 = e1->z;
   float z2 = e2->z;
 
-  sx1 = (int)floor(x1);
+  sx1 = (int)ceil(x1);
   sx2 = (int)ceil(x2);
 
   z = z1;
@@ -853,10 +845,12 @@ static void gfx_vertex_shader (gfxv4 *out, gfxv4 *in, gfxm4 *mv, int index)
 {
   gfx_v4_mult(out, in, mv);
 
-  // if (index % 2)
-  //   out->y += (sinf(grow_amt) * 5);
-  // else 
-  //   out->y += (cosf(grow_amt) * 5);
+  /*
+  if (index % 2)
+    out->y += (sinf(grow_amt) * 5);
+  else 
+    out->y += (cosf(grow_amt) * 5);
+  */
 
 }
 

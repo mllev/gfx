@@ -14,6 +14,7 @@ struct _window {
   struct {
     int a, w, s, d, p, m;
     int up, down, left, right;
+    int enter;
     int _1, _2;
   } keys;
 
@@ -85,6 +86,7 @@ void window_update (window_t *w, unsigned *buf)
           case SDLK_DOWN:  w->keys.down  = down; break;
           case SDLK_LEFT:  w->keys.left  = down; break;
           case SDLK_RIGHT: w->keys.right = down; break;
+          case SDLK_RETURN: w->keys.enter = down; break;
           default: break;
         }
         break;
