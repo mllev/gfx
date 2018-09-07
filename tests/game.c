@@ -71,17 +71,17 @@ void draw_exit (float x_pos, float *color)
 
   gfx_identity();
   gfx_translate(x_pos - 3, 1, STATE.board.depth);
-  gfx_scale(3, 6, 3);
+  gfx_scale(3, 3, 3);
   gfx_draw_arrays(0, -1);
 
   gfx_identity();
   gfx_translate(x_pos + 3, 1, STATE.board.depth);
-  gfx_scale(3, 6, 3);
+  gfx_scale(3, 3, 3);
   gfx_draw_arrays(0, -1);
 
   gfx_identity();
-  gfx_translate(x_pos, 4, STATE.board.depth);
-  gfx_scale(3, 3, 3);
+  gfx_translate(x_pos - 3, 4, STATE.board.depth);
+  gfx_scale(9, 3, 3);
   gfx_draw_arrays(0, -1);
 }
 
@@ -186,10 +186,10 @@ void draw_frame ()
     gfx_rotate(1, 0, 0, -1.01);
     gfx_translate(-STATE.camera.x, -STATE.camera.y, -STATE.camera.z);
 
-    draw_player();
     draw_board();
     draw_entities();
     draw_exit(STATE.exit_x, white_color);
+    draw_player();
 
     if (STATE.current_level > 0) {
       draw_exit(12, brown_color);
@@ -319,7 +319,7 @@ int main (void) {
     if (window.keys.s) {
       STATE.camera.z -= STATE.camera.speed;
     }
-    
+
     if (window.keys.up && !STATE.player.is_moving_forwards) {
       STATE.player.is_moving_forwards = 1;
     }
