@@ -136,7 +136,7 @@ void update_player ()
 
     STATE.player.x += STATE.player.speed;
 
-    if (STATE.player.x > max && (STATE.player.x != 12)) {
+    if (STATE.player.x > max) {
       STATE.player.x = max;
       STATE.player.is_moving_right = 0;
       STATE.player.current_x = STATE.player.x;
@@ -320,20 +320,21 @@ int main (void) {
       STATE.camera.z -= STATE.camera.speed;
     }
 
-    if (window.keys.up && !STATE.player.is_moving_forwards) {
-      STATE.player.is_moving_forwards = 1;
-    }
-
-    if (window.keys.down && !STATE.player.is_moving_backwards) {
-      STATE.player.is_moving_backwards = 1;
-    }
-
-    if (window.keys.left && !STATE.player.is_moving_left) {
-      STATE.player.is_moving_left = 1;
-    }
-
-    if (window.keys.right && !STATE.player.is_moving_right) {
-      STATE.player.is_moving_right = 1;
+    if (!(
+      STATE.player.is_moving_forwards |
+      STATE.player.is_moving_backwards |
+      STATE.player.is_moving_left |
+      STATE.player.is_moving_right
+    )) {
+      if (window.keys.up && !STATE.player.is_moving_forwards) {
+        STATE.player.is_moving_forwards = 1;
+      } else if (window.keys.down && !STATE.player.is_moving_backwards) {
+        STATE.player.is_moving_backwards = 1;
+      } else if (window.keys.left && !STATE.player.is_moving_left) {
+        STATE.player.is_moving_left = 1;
+      } else if (window.keys.right && !STATE.player.is_moving_right) {
+        STATE.player.is_moving_right = 1;
+      }
     }
 
     if (window.keys.enter && !STATE.has_begun) {
