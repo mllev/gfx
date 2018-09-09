@@ -13,6 +13,21 @@
 
 #include "../src/geometry.h"
 
+#define DIR_FORWARDS 1
+#define DIR_BACKWARDS 2
+#define DIR_LEFT 3
+#define DIR_RIGHT 4
+
+typedef struct {
+  float x, y, z;
+  float speed;
+  int move_direction;
+  float move_distance;
+  float r, g, b;
+  float width, height, depth;
+  int has_exited;
+} entity;
+
 struct {
   int has_begun;
   int current_level;
@@ -22,18 +37,7 @@ struct {
     float speed;
   } camera;
 
-  struct {
-    float x, y, z;
-    float speed;
-    int is_moving_left;
-    int is_moving_right;
-    int is_moving_forwards;
-    int is_moving_backwards;
-    float r, g, b;
-    float width, height, depth;
-    float current_x, current_z;
-    int has_exited;
-  } player;
+  entity player;
 
   struct {
     float width, height, depth;
@@ -90,69 +94,42 @@ void draw_exit (float x_pos, float *color)
   STATE.text_width = strlen(buf) * 8; \
 }
 
-void update_player ()
+void update_entity (entity *e)
 {
-  float max_board_x = STATE.board.width - STATE.player.width;
-  float max_board_z = STATE.board.depth - STATE.player.depth;
-
-  float max_tile_x = STATE.player.current_x + STATE.player.width;
-  float max_tile_z = STATE.player.current_z + STATE.player.depth;
-
-  float min_tile_x = STATE.player.current_x - STATE.player.width;
-  float min_tile_z = STATE.player.current_z - STATE.player.depth;
-
-  if (STATE.player.is_moving_forwards) {
-    STATE.player.z += STATE.player.speed;
-
-    if (STATE.player.z > max_board_z && STATE.player.x != STATE.exit_x) {
-      STATE.player.z = max_board_z;
-      STATE.player.is_moving_forwards = 0;
-      STATE.player.current_z = STATE.player.z;
-    } else if (STATE.player.z > max_tile_z) {
-      STATE.player.z = max_tile_z;
-      STATE.player.is_moving_forwards = 0;
-      STATE.player.current_z = STATE.player.z;
-
-      if (max_tile_z > max_board_z) {
-        STATE.player.has_exited = 1;
+  switch (e->move_direction) {
+    case DIR_FORWARDS:
+      if (e->speed < e->move_distance) {
+        e->z += e->speed; e->move_distance -= e->speed;
+      } else {
+        e->z += e->move_distance;
+        e->move_distance = e->move_direction = 0;
       }
-    }
-  }
-
-  if (STATE.player.is_moving_backwards) {
-    float min = min_tile_z > 0 ? min_tile_z : 0;
-
-    STATE.player.z -= STATE.player.speed;
-
-    if (STATE.player.z < min) {
-      STATE.player.z = min;
-      STATE.player.is_moving_backwards = 0;
-      STATE.player.current_z = STATE.player.z;
-    }
-  }
-
-  if (STATE.player.is_moving_right) {
-    float max = max_tile_x < max_board_x ? max_tile_x : max_board_x;
-
-    STATE.player.x += STATE.player.speed;
-
-    if (STATE.player.x > max) {
-      STATE.player.x = max;
-      STATE.player.is_moving_right = 0;
-      STATE.player.current_x = STATE.player.x;
-    }
-  }
-
-  if (STATE.player.is_moving_left) {
-    float min = min_tile_x > 0 ? min_tile_x : 0;
-
-    STATE.player.x -= STATE.player.speed;
-
-    if (STATE.player.x < min) {
-      STATE.player.x = min;
-      STATE.player.is_moving_left = 0;
-      STATE.player.current_x = STATE.player.x;
-    }
+      break;
+    case DIR_BACKWARDS:
+      if (e->speed < e->move_distance) {
+        e->z -= e->speed; e->move_distance -= e->speed;
+      } else {
+        e->z -= e->move_distance;
+        e->move_distance = e->move_direction = 0;
+      }
+      break;
+    case DIR_RIGHT:
+      if (e->speed < e->move_distance) {
+        e->x += e->speed; e->move_distance -= e->speed;
+      } else {
+        e->x += e->move_distance;
+        e->move_distance = e->move_direction = 0;
+      }
+      break;
+    case DIR_LEFT:
+      if (e->speed < e->move_distance) {
+        e->x -= e->speed; e->move_distance -= e->speed;
+      } else {
+        e->x -= e->move_distance;
+        e->move_distance = e->move_direction = 0;
+      }
+      break;
+    default: break;
   }
 }
 
@@ -169,7 +146,13 @@ void draw_player ()
 
 void draw_entities ()
 {
-  return;
+  gfx_matrix_mode(GFX_MODEL_MATRIX);
+  gfx_identity();
+  gfx_translate(0, 1, 6);
+  gfx_scale(3, 3, 3);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_attr(GFX_ATTR_RGB, brown_color);
+  gfx_draw_arrays(0, -1);
 }
 
 void draw_frame ()
@@ -187,9 +170,9 @@ void draw_frame ()
     gfx_translate(-STATE.camera.x, -STATE.camera.y, -STATE.camera.z);
 
     draw_board();
-    draw_entities();
     draw_exit(STATE.exit_x, white_color);
     draw_player();
+    draw_entities();
 
     if (STATE.current_level > 0) {
       draw_exit(12, brown_color);
@@ -198,16 +181,18 @@ void draw_frame ()
   }
 }
 
+void move_player (int direction)
+{
+  STATE.player.move_direction = direction;
+
+  /* calculate collision here */
+  STATE.player.move_distance = STATE.player.depth;
+}
+
 void reset_player ()
 {
   STATE.player.x = 0;
   STATE.player.z = 0;
-  STATE.player.current_x = 0;
-  STATE.player.current_z = 0;
-  STATE.player.is_moving_forwards = 0;
-  STATE.player.is_moving_backwards = 0;
-  STATE.player.is_moving_right = 0;
-  STATE.player.is_moving_left = 0;
   STATE.player.has_exited = 0;
 }
 
@@ -215,7 +200,10 @@ void update_game ()
 {
   if (STATE.player.has_exited) {
     reset_player();
-    STATE.current_level++;
+    if (STATE.current_level < 1)
+      STATE.current_level++;
+    else
+      STATE.current_level--;
   }
 
   switch (STATE.current_level) {
@@ -240,7 +228,7 @@ void update_game ()
     } break;
   }
 
-  update_player();
+  update_entity(&STATE.player);
 }
 
 void init_game ()
@@ -320,20 +308,15 @@ int main (void) {
       STATE.camera.z -= STATE.camera.speed;
     }
 
-    if (!(
-      STATE.player.is_moving_forwards |
-      STATE.player.is_moving_backwards |
-      STATE.player.is_moving_left |
-      STATE.player.is_moving_right
-    )) {
-      if (window.keys.up && !STATE.player.is_moving_forwards) {
-        STATE.player.is_moving_forwards = 1;
-      } else if (window.keys.down && !STATE.player.is_moving_backwards) {
-        STATE.player.is_moving_backwards = 1;
-      } else if (window.keys.left && !STATE.player.is_moving_left) {
-        STATE.player.is_moving_left = 1;
-      } else if (window.keys.right && !STATE.player.is_moving_right) {
-        STATE.player.is_moving_right = 1;
+    if (!STATE.player.move_direction) {
+      if (window.keys.up) {
+        move_player(DIR_FORWARDS);
+      } else if (window.keys.down) {
+        move_player(DIR_BACKWARDS);
+      } else if (window.keys.left) {
+        move_player(DIR_LEFT);
+      } else if (window.keys.right) {
+        move_player(DIR_RIGHT);
       }
     }
 
