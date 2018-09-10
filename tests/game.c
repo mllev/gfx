@@ -99,7 +99,8 @@ void update_entity (entity *e)
   switch (e->move_direction) {
     case DIR_FORWARDS:
       if (e->speed < e->move_distance) {
-        e->z += e->speed; e->move_distance -= e->speed;
+        e->z += e->speed;
+        e->move_distance -= e->speed;
       } else {
         e->z += e->move_distance;
         e->move_distance = e->move_direction = 0;
@@ -107,7 +108,8 @@ void update_entity (entity *e)
       break;
     case DIR_BACKWARDS:
       if (e->speed < e->move_distance) {
-        e->z -= e->speed; e->move_distance -= e->speed;
+        e->z -= e->speed;
+        e->move_distance -= e->speed;
       } else {
         e->z -= e->move_distance;
         e->move_distance = e->move_direction = 0;
@@ -115,7 +117,8 @@ void update_entity (entity *e)
       break;
     case DIR_RIGHT:
       if (e->speed < e->move_distance) {
-        e->x += e->speed; e->move_distance -= e->speed;
+        e->x += e->speed;
+        e->move_distance -= e->speed;
       } else {
         e->x += e->move_distance;
         e->move_distance = e->move_direction = 0;
@@ -123,7 +126,8 @@ void update_entity (entity *e)
       break;
     case DIR_LEFT:
       if (e->speed < e->move_distance) {
-        e->x -= e->speed; e->move_distance -= e->speed;
+        e->x -= e->speed;
+        e->move_distance -= e->speed;
       } else {
         e->x -= e->move_distance;
         e->move_distance = e->move_direction = 0;
@@ -183,10 +187,38 @@ void draw_frame ()
 
 void move_player (int direction)
 {
+  float board_top = STATE.board.z + STATE.board.depth;
+  float board_bottom = STATE.board.z;
+  float board_right = STATE.board.x + STATE.board.width;
+  float board_left = STATE.board.x;
+
+  float player_top = STATE.player.z + STATE.player.depth;
+  float player_bottom = STATE.player.z;
+  float player_right = STATE.player.x + STATE.player.width;
+  float player_left = STATE.player.x;
+
+  float speed = STATE.player.speed;
+  float depth = STATE.player.depth;
+  float width = STATE.player.width;
+
   STATE.player.move_direction = direction;
 
-  /* calculate collision here */
-  STATE.player.move_distance = STATE.player.depth;
+  /* @todo: collision with entities and exits */
+
+  switch (direction) {
+    case DIR_FORWARDS: {
+      STATE.player.move_distance = player_top + speed < board_top ? depth : 0;
+    } break;
+    case DIR_BACKWARDS: {
+      STATE.player.move_distance = player_bottom - speed > board_bottom ? depth : 0;
+    } break;
+    case DIR_LEFT: {
+      STATE.player.move_distance = player_left - speed > board_left ? width : 0;
+    } break;
+    case DIR_RIGHT: {
+      STATE.player.move_distance = player_right + speed < board_right ? width : 0;
+    } break;
+  }
 }
 
 void reset_player ()
@@ -198,14 +230,6 @@ void reset_player ()
 
 void update_game ()
 {
-  if (STATE.player.has_exited) {
-    reset_player();
-    if (STATE.current_level < 1)
-      STATE.current_level++;
-    else
-      STATE.current_level--;
-  }
-
   switch (STATE.current_level) {
     case 0: {
       STATE.board.x = 0;
@@ -318,6 +342,14 @@ int main (void) {
       } else if (window.keys.right) {
         move_player(DIR_RIGHT);
       }
+    }
+
+    if (window.keys._1) {
+      STATE.current_level = 0;
+    }
+
+    if (window.keys._2) {
+      STATE.current_level = 1;
     }
 
     if (window.keys.enter && !STATE.has_begun) {

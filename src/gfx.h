@@ -844,14 +844,6 @@ float grow_amt = 0.0;
 static void gfx_vertex_shader (gfxv4 *out, gfxv4 *in, gfxm4 *mv, int index)
 {
   gfx_v4_mult(out, in, mv);
-
-  /*
-  if (index % 2)
-    out->y += (sinf(grow_amt) * 5);
-  else 
-    out->y += (cosf(grow_amt) * 5);
-  */
-
 }
 
 void gfx_draw_arrays (int start, int end)
@@ -870,10 +862,6 @@ void gfx_draw_arrays (int start, int end)
   vidx = 0;
   pidx = 0;
   uvidx = start * 6;
-
-
-  grow_amt += 0.05;
-
 
   gfx_m4_mult(&mv, &GFX.view, &GFX.model);
 
