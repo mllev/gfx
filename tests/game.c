@@ -31,6 +31,7 @@ typedef struct {
 struct {
   int has_begun;
   int current_level;
+  int num_entities;
 
   struct {
     float x, y, z;
@@ -38,6 +39,10 @@ struct {
   } camera;
 
   entity player;
+  entity entities[100];
+  struct {
+    float start, end, val;
+  } colliders[100];
 
   struct {
     float width, height, depth;
@@ -150,13 +155,29 @@ void draw_player ()
 
 void draw_entities ()
 {
-  gfx_matrix_mode(GFX_MODEL_MATRIX);
-  gfx_identity();
-  gfx_translate(0, 1, 6);
-  gfx_scale(3, 3, 3);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-  gfx_bind_attr(GFX_ATTR_RGB, brown_color);
-  gfx_draw_arrays(0, -1);
+  int i, max;
+
+  for (i = 0, max = STATE.num_entities; i < max; i++) {
+    gfx_matrix_mode(GFX_MODEL_MATRIX);
+    gfx_identity();
+    gfx_translate(STATE.entities[i].x, STATE.entities[i].y, STATE.entities[i].z);
+    gfx_scale(STATE.entities[i].width, STATE.entities[i].height, STATE.entities[i].depth);
+    gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+    gfx_bind_attr(GFX_ATTR_RGB, brown_color);
+    gfx_draw_arrays(0, -1);
+  }
+}
+
+void add_entity (float x, float y, float z, float w, float h, float d)
+{
+  int i = STATE.num_entities++;
+
+  STATE.entities[i].x = x;
+  STATE.entities[i].y = y;
+  STATE.entities[i].z = z;
+  STATE.entities[i].width = w;
+  STATE.entities[i].height = h;
+  STATE.entities[i].depth = d;
 }
 
 void draw_frame ()
@@ -185,12 +206,106 @@ void draw_frame ()
   }
 }
 
+int in_range (float v1, float v2, float p)
+{
+  return (
+    (p < v2 && (fabs(v2 - p) > 0.0001)) && 
+    (p > v1 || (fabs(v1 - p) < 0.0001))
+  );
+}
+
+float get_nearest_collider (int direction)
+{
+  int i;
+  float nearest;
+  float nearest_z;
+  float nearest_x;
+  float px = STATE.player.x;
+  float pz = STATE.player.z;
+
+  switch (direction) {
+    case DIR_FORWARDS: {
+      nearest_z = 1000;
+      for (i = 0; i < STATE.num_entities; i++) {
+        float ex1 = STATE.entities[i].x;
+        float ex2 = STATE.entities[i].x + STATE.entities[i].width;
+
+        if (in_range(ex1, ex2, px)) {
+          float ez = STATE.entities[i].z;
+          if (ez > STATE.player.z) {
+            if (ez < nearest_z) {
+              nearest_z = ez;
+            }
+          }
+        }
+      }
+      nearest = nearest_z;
+    } break;
+    case DIR_BACKWARDS: {
+      nearest_z = -1000;
+      for (i = 0; i < STATE.num_entities; i++) {
+        float ex1 = STATE.entities[i].x;
+        float ex2 = STATE.entities[i].x + STATE.entities[i].width;
+
+        if (in_range(ex1, ex2, px)) {
+          float ez = STATE.entities[i].z;
+          if (ez < STATE.player.z) {
+            if (ez > nearest_z) {
+              nearest_z = ez + STATE.entities[i].depth;
+            }
+          }
+        }
+      }
+      nearest = nearest_z;
+    } break;
+    case DIR_RIGHT: {
+      nearest_x = 1000;
+      for (i = 0; i < STATE.num_entities; i++) {
+        float ez1 = STATE.entities[i].z;
+        float ez2 = STATE.entities[i].z + STATE.entities[i].depth;
+
+        if (in_range(ez1, ez2, pz)) {
+          float ex = STATE.entities[i].x;
+          if (ex > STATE.player.x) {
+            if (ex < nearest_x) {
+              nearest_x = ex;
+            }
+          }
+        }
+      }
+      nearest = nearest_x;
+    } break;
+    case DIR_LEFT: {
+      nearest_x = -1000;
+      for (i = 0; i < STATE.num_entities; i++) {
+        float ez1 = STATE.entities[i].z;
+        float ez2 = STATE.entities[i].z + STATE.entities[i].depth;
+
+        if (in_range(ez1, ez2, pz)) {
+          float ex = STATE.entities[i].x;
+          if (ex < STATE.player.x) {
+            if (ex > nearest_x) {
+              nearest_x = ex + STATE.entities[i].width;
+            }
+          }
+        }
+      }
+      nearest = nearest_x;
+    } break;
+    default:
+      nearest = 1000;
+      break;
+  }
+
+  return nearest;
+}
+
 void move_player (int direction)
 {
-  float board_top = STATE.board.z + STATE.board.depth;
-  float board_bottom = STATE.board.z;
-  float board_right = STATE.board.x + STATE.board.width;
-  float board_left = STATE.board.x;
+  float top = STATE.board.z + STATE.board.depth;
+  float bottom = STATE.board.z;
+  float right = STATE.board.x + STATE.board.width;
+  float left = STATE.board.x;
 
   float player_top = STATE.player.z + STATE.player.depth;
   float player_bottom = STATE.player.z;
@@ -201,22 +316,28 @@ void move_player (int direction)
   float depth = STATE.player.depth;
   float width = STATE.player.width;
 
+  float nearest = get_nearest_collider(direction);
+
   STATE.player.move_direction = direction;
 
   /* @todo: collision with entities and exits */
 
   switch (direction) {
     case DIR_FORWARDS: {
-      STATE.player.move_distance = player_top + speed < board_top ? depth : 0;
+      if (nearest < top) top = nearest;
+      STATE.player.move_distance = player_top + speed < top ? depth : 0;
     } break;
     case DIR_BACKWARDS: {
-      STATE.player.move_distance = player_bottom - speed > board_bottom ? depth : 0;
+      if (nearest > bottom) bottom = nearest;
+      STATE.player.move_distance = player_bottom - speed > bottom ? depth : 0;
     } break;
     case DIR_LEFT: {
-      STATE.player.move_distance = player_left - speed > board_left ? width : 0;
+      if (nearest > left) left = nearest;
+      STATE.player.move_distance = player_left - speed > left ? width : 0;
     } break;
     case DIR_RIGHT: {
-      STATE.player.move_distance = player_right + speed < board_right ? width : 0;
+      if (nearest < right) right = nearest;
+      STATE.player.move_distance = player_right + speed < right ? width : 0;
     } break;
   }
 }
@@ -239,6 +360,7 @@ void update_game ()
       STATE.board.depth = 15;
       STATE.exit_x = 6;
       STATE.camera.x = 7.5;
+      STATE.num_entities = 0;
     } break;
     case 1:
     default: {
@@ -249,6 +371,11 @@ void update_game ()
       STATE.board.depth = 15;
       STATE.exit_x = 21;
       STATE.camera.x = 22.5;
+      STATE.num_entities = 0;
+
+      add_entity(0, 1, 9, 6, 3, 3);
+      add_entity(0, 1, 6, 3, 3, 3);
+      add_entity(12, 1, 3, 6, 3, 3);
     } break;
   }
 
