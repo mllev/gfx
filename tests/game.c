@@ -21,11 +21,12 @@
 typedef struct {
   float x, y, z;
   float speed;
-  int move_direction;
   float move_distance;
   float r, g, b;
   float width, height, depth;
+  struct { float x, z; } direction;
   int has_exited;
+  int is_moving;
 } entity;
 
 struct {
@@ -58,8 +59,8 @@ struct {
   int window_width, window_height;
 } STATE;
 
-float blue_color[]  = { 0.349, 0.647, 0.847, };
-float white_color[] = { 1.0, 1.0, 1.0 };
+float blue_color[]  = { 0.349, 0.647, 0.847 };
+float white_color[] = {   1.0,   1.0,   1.0 };
 float brown_color[] = { 0.573, 0.416, 0.176 };
 
 void draw_board ()
@@ -94,6 +95,17 @@ void draw_exit (float x_pos, float *color)
   gfx_draw_arrays(0, -1);
 }
 
+void draw_entity (entity *e, float *color)
+{
+  gfx_matrix_mode(GFX_MODEL_MATRIX);
+  gfx_identity();
+  gfx_translate(e->x, e->y, e->z);
+  gfx_scale(e->width, e->height, e->depth);
+  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_attr(GFX_ATTR_RGB, color);
+  gfx_draw_arrays(0, -1);
+}
+
 #define set_text(buf) { \
   sprintf(STATE.text_buffer, buf); \
   STATE.text_width = strlen(buf) * 8; \
@@ -101,70 +113,19 @@ void draw_exit (float x_pos, float *color)
 
 void update_entity (entity *e)
 {
-  switch (e->move_direction) {
-    case DIR_FORWARDS:
-      if (e->speed < e->move_distance) {
-        e->z += e->speed;
-        e->move_distance -= e->speed;
-      } else {
-        e->z += e->move_distance;
-        e->move_distance = e->move_direction = 0;
-      }
-      break;
-    case DIR_BACKWARDS:
-      if (e->speed < e->move_distance) {
-        e->z -= e->speed;
-        e->move_distance -= e->speed;
-      } else {
-        e->z -= e->move_distance;
-        e->move_distance = e->move_direction = 0;
-      }
-      break;
-    case DIR_RIGHT:
-      if (e->speed < e->move_distance) {
-        e->x += e->speed;
-        e->move_distance -= e->speed;
-      } else {
-        e->x += e->move_distance;
-        e->move_distance = e->move_direction = 0;
-      }
-      break;
-    case DIR_LEFT:
-      if (e->speed < e->move_distance) {
-        e->x -= e->speed;
-        e->move_distance -= e->speed;
-      } else {
-        e->x -= e->move_distance;
-        e->move_distance = e->move_direction = 0;
-      }
-      break;
-    default: break;
-  }
-}
+  if (e->is_moving) {
+    float speed = e->speed;
 
-void draw_player ()
-{
-  gfx_matrix_mode(GFX_MODEL_MATRIX);
-  gfx_identity();
-  gfx_translate(STATE.player.x, STATE.player.y, STATE.player.z);
-  gfx_scale(STATE.player.width, STATE.player.height, STATE.player.depth);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-  gfx_bind_attr(GFX_ATTR_RGB, white_color);
-  gfx_draw_arrays(0, -1);
-}
+    if (speed > e->move_distance) {
+      speed = e->move_distance;
+      e->move_distance = 0;
+      e->is_moving = 0;
+    } else {
+      e->move_distance -= speed;
+    }
 
-void draw_entities ()
-{
-  int i, max;
-
-  for (i = 0, max = STATE.num_entities; i < max; i++) {
-    gfx_matrix_mode(GFX_MODEL_MATRIX);
-    gfx_identity();
-    gfx_translate(STATE.entities[i].x, STATE.entities[i].y, STATE.entities[i].z);
-    gfx_scale(STATE.entities[i].width, STATE.entities[i].height, STATE.entities[i].depth);
-    gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
-    gfx_bind_attr(GFX_ATTR_RGB, brown_color);
-    gfx_draw_arrays(0, -1);
+    e->x += (e->direction.x * speed);
+    e->z += (e->direction.z * speed);
   }
 }
 
@@ -182,6 +143,8 @@ void add_entity (float x, float y, float z, float w, float h, float d)
 
 void draw_frame ()
 {
+  int i;
+
   if (!STATE.has_begun) {
     int text_x = STATE.window_width / 2 - (STATE.text_width / 2);
     int text_y = STATE.window_height / 2 - 4;
@@ -196,8 +159,11 @@ void draw_frame ()
 
     draw_board();
     draw_exit(STATE.exit_x, white_color);
-    draw_player();
-    draw_entities();
+    draw_entity(&STATE.player, white_color);
+
+    for (i = 0; i < STATE.num_entities; i++) {
+      draw_entity(&STATE.entities[i], brown_color);
+    }
 
     if (STATE.current_level > 0) {
       draw_exit(12, brown_color);
@@ -206,147 +172,32 @@ void draw_frame ()
   }
 }
 
-int in_range (float v1, float v2, float p)
-{
-  return (
-    (p < v2 && (fabs(v2 - p) > 0.0001)) && 
-    (p > v1 || (fabs(v1 - p) < 0.0001))
-  );
-}
-
-float get_nearest_collider (int direction)
-{
-  int i;
-  float nearest;
-  float nearest_z;
-  float nearest_x;
-  float px = STATE.player.x;
-  float pz = STATE.player.z;
-
-  switch (direction) {
-    case DIR_FORWARDS: {
-      nearest_z = 1000;
-      for (i = 0; i < STATE.num_entities; i++) {
-        float ex1 = STATE.entities[i].x;
-        float ex2 = STATE.entities[i].x + STATE.entities[i].width;
-
-        if (in_range(ex1, ex2, px)) {
-          float ez = STATE.entities[i].z;
-          if (ez > STATE.player.z) {
-            if (ez < nearest_z) {
-              nearest_z = ez;
-            }
-          }
-        }
-      }
-      nearest = nearest_z;
-    } break;
-    case DIR_BACKWARDS: {
-      nearest_z = -1000;
-      for (i = 0; i < STATE.num_entities; i++) {
-        float ex1 = STATE.entities[i].x;
-        float ex2 = STATE.entities[i].x + STATE.entities[i].width;
-
-        if (in_range(ex1, ex2, px)) {
-          float ez = STATE.entities[i].z;
-          if (ez < STATE.player.z) {
-            if (ez > nearest_z) {
-              nearest_z = ez + STATE.entities[i].depth;
-            }
-          }
-        }
-      }
-      nearest = nearest_z;
-    } break;
-    case DIR_RIGHT: {
-      nearest_x = 1000;
-      for (i = 0; i < STATE.num_entities; i++) {
-        float ez1 = STATE.entities[i].z;
-        float ez2 = STATE.entities[i].z + STATE.entities[i].depth;
-
-        if (in_range(ez1, ez2, pz)) {
-          float ex = STATE.entities[i].x;
-          if (ex > STATE.player.x) {
-            if (ex < nearest_x) {
-              nearest_x = ex;
-            }
-          }
-        }
-      }
-      nearest = nearest_x;
-    } break;
-    case DIR_LEFT: {
-      nearest_x = -1000;
-      for (i = 0; i < STATE.num_entities; i++) {
-        float ez1 = STATE.entities[i].z;
-        float ez2 = STATE.entities[i].z + STATE.entities[i].depth;
-
-        if (in_range(ez1, ez2, pz)) {
-          float ex = STATE.entities[i].x;
-          if (ex < STATE.player.x) {
-            if (ex > nearest_x) {
-              nearest_x = ex + STATE.entities[i].width;
-            }
-          }
-        }
-      }
-      nearest = nearest_x;
-    } break;
-    default:
-      nearest = 1000;
-      break;
-  }
-
-  return nearest;
-}
-
 void move_player (int direction)
 {
-  float top = STATE.board.z + STATE.board.depth;
-  float bottom = STATE.board.z;
-  float right = STATE.board.x + STATE.board.width;
-  float left = STATE.board.x;
-
-  float player_top = STATE.player.z + STATE.player.depth;
-  float player_bottom = STATE.player.z;
-  float player_right = STATE.player.x + STATE.player.width;
-  float player_left = STATE.player.x;
-
-  float speed = STATE.player.speed;
-  float depth = STATE.player.depth;
-  float width = STATE.player.width;
-
-  float nearest = get_nearest_collider(direction);
-
-  STATE.player.move_direction = direction;
-
-  /* @todo: collision with entities and exits */
-
   switch (direction) {
     case DIR_FORWARDS: {
-      if (nearest < top) top = nearest;
-      STATE.player.move_distance = player_top + speed < top ? depth : 0;
+      STATE.player.direction.x = 0;
+      STATE.player.direction.z = 1;
+      STATE.player.move_distance = STATE.player.depth;
     } break;
     case DIR_BACKWARDS: {
-      if (nearest > bottom) bottom = nearest;
-      STATE.player.move_distance = player_bottom - speed > bottom ? depth : 0;
+      STATE.player.direction.x = 0;
+      STATE.player.direction.z = -1;
+      STATE.player.move_distance = STATE.player.depth;
     } break;
     case DIR_LEFT: {
-      if (nearest > left) left = nearest;
-      STATE.player.move_distance = player_left - speed > left ? width : 0;
+      STATE.player.direction.z = 0;
+      STATE.player.direction.x = -1;
+      STATE.player.move_distance = STATE.player.width;
     } break;
     case DIR_RIGHT: {
-      if (nearest < right) right = nearest;
-      STATE.player.move_distance = player_right + speed < right ? width : 0;
+      STATE.player.direction.z = 0;
+      STATE.player.direction.x = 1;
+      STATE.player.move_distance = STATE.player.width;
     } break;
   }
-}
 
-void reset_player ()
-{
-  STATE.player.x = 0;
-  STATE.player.z = 0;
-  STATE.player.has_exited = 0;
+  STATE.player.is_moving = 1;
 }
 
 void update_game ()
@@ -424,7 +275,7 @@ unsigned int* load_texture (const char *file)
 
 int main (void) {
   window_t window;
-  int width = 960, height = 540;
+  int width = 1280, height = 720;
   unsigned int* buf;
   float *zbuf;
   float fov = 60;
@@ -459,7 +310,7 @@ int main (void) {
       STATE.camera.z -= STATE.camera.speed;
     }
 
-    if (!STATE.player.move_direction) {
+    if (!STATE.player.is_moving) {
       if (window.keys.up) {
         move_player(DIR_FORWARDS);
       } else if (window.keys.down) {
