@@ -25,7 +25,7 @@ typedef struct {
   float r, g, b;
   float width, height, depth;
   struct { float x, z; } direction;
-  int has_exited;
+  int is_exiting;
   int is_moving;
 } entity;
 
@@ -41,9 +41,6 @@ struct {
 
   entity player;
   entity entities[100];
-  struct {
-    float start, end, val;
-  } colliders[100];
 
   struct {
     float width, height, depth;
@@ -115,17 +112,43 @@ void update_entity (entity *e)
 {
   if (e->is_moving) {
     float speed = e->speed;
+    float xstep, zstep;
 
     if (speed > e->move_distance) {
       speed = e->move_distance;
-      e->move_distance = 0;
-      e->is_moving = 0;
+      e->move_distance = e->is_moving = e->is_exiting = 0;
     } else {
       e->move_distance -= speed;
     }
 
-    e->x += (e->direction.x * speed);
-    e->z += (e->direction.z * speed);
+    xstep = e->direction.x * speed;
+    zstep = e->direction.z * speed;
+
+    /* wall collision */
+    if (e->x + e->width + xstep > STATE.board.x + STATE.board.width) {
+      e->x = STATE.board.x + STATE.board.width - e->width;
+      e->move_distance = e->is_moving = 0;
+    } else if (e->x + xstep < STATE.board.x) {
+      e->x = STATE.board.x;
+      e->move_distance = e->is_moving = 0;
+    } else if (e->z + e->depth + zstep > STATE.board.z + STATE.board.depth) {
+      if (fabs(e->x - STATE.exit_x) > 0.0001) {
+        e->z = STATE.board.z + STATE.board.depth - e->depth;
+        e->move_distance = e->is_moving = 0;
+      } else {
+        e->x += xstep;
+        e->z += zstep;
+      }
+    } else if (e->z + zstep < STATE.board.z) {
+      e->z = STATE.board.z;
+      e->move_distance = e->is_moving = 0;
+    } else {
+
+      /* check entity collision here? */
+
+      e->x += xstep;
+      e->z += zstep;
+    }
   }
 }
 
@@ -158,16 +181,11 @@ void draw_frame ()
     gfx_translate(-STATE.camera.x, -STATE.camera.y, -STATE.camera.z);
 
     draw_board();
-    draw_exit(STATE.exit_x, white_color);
     draw_entity(&STATE.player, white_color);
+    draw_exit(STATE.exit_x, white_color);
 
     for (i = 0; i < STATE.num_entities; i++) {
       draw_entity(&STATE.entities[i], brown_color);
-    }
-
-    if (STATE.current_level > 0) {
-      draw_exit(12, brown_color);
-      draw_exit(30, brown_color);
     }
   }
 }
@@ -200,36 +218,93 @@ void move_player (int direction)
   STATE.player.is_moving = 1;
 }
 
+void init_level_1 ()
+{
+  STATE.board.x = 0;
+  STATE.board.z = 0;
+  STATE.board.width = 15;
+  STATE.board.height = 1;
+  STATE.board.depth = 15;
+
+  STATE.exit_x = 6;
+
+  STATE.camera.y = 30;
+  STATE.camera.x = 7.5;
+  STATE.camera.z = -7;
+  STATE.camera.speed = 0.1;
+
+  STATE.player.x = 0;
+  STATE.player.z = 0;
+  STATE.player.y = 1;
+  STATE.player.speed = 0.65;
+  STATE.player.width = 3;
+  STATE.player.height = 3;
+  STATE.player.depth = 3;
+  STATE.player.is_exiting = 0;
+
+  STATE.num_entities = 0;
+}
+
+void init_level_2 ()
+{
+  STATE.board.x = 0;
+  STATE.board.z = 0;
+  STATE.board.width = 46.5;
+  STATE.board.height = 1;
+  STATE.board.depth = 15;
+
+  STATE.exit_x = 7.5;
+
+  STATE.camera.y = 30;
+  STATE.camera.x = 22.5;
+  STATE.camera.z = -7;
+  STATE.camera.speed = 0.1;
+
+  STATE.player.x = 0;
+  STATE.player.z = 0;
+  STATE.player.y = 1;
+  STATE.player.speed = 0.65;
+  STATE.player.width = 3;
+  STATE.player.height = 3;
+  STATE.player.depth = 3;
+  STATE.player.is_exiting = 0;
+
+  STATE.num_entities = 0;
+}
+
+void init_level_3 ()
+{
+  STATE.board.x = 0;
+  STATE.board.z = 0;
+  STATE.board.width = 45;
+  STATE.board.height = 1;
+  STATE.board.depth = 15;
+
+  STATE.exit_x = 21;
+
+  STATE.camera.y = 30;
+  STATE.camera.x = 22.5;
+  STATE.camera.z = -7;
+  STATE.camera.speed = 0.1;
+
+  STATE.player.x = 0;
+  STATE.player.z = 0;
+  STATE.player.y = 1;
+  STATE.player.speed = 0.65;
+  STATE.player.width = 3;
+  STATE.player.height = 3;
+  STATE.player.depth = 3;
+  STATE.player.is_exiting = 0;
+
+  STATE.num_entities = 0;
+
+  add_entity(0, 1, 9, 6, 3, 3);
+  add_entity(0, 1, 6, 3, 3, 3);
+  add_entity(12, 1, 3, 6, 3, 3);
+}
+
 void update_game ()
 {
-  switch (STATE.current_level) {
-    case 0: {
-      STATE.board.x = 0;
-      STATE.board.z = 0;
-      STATE.board.width = 15;
-      STATE.board.height = 1;
-      STATE.board.depth = 15;
-      STATE.exit_x = 6;
-      STATE.camera.x = 7.5;
-      STATE.num_entities = 0;
-    } break;
-    case 1:
-    default: {
-      STATE.board.x = 0;
-      STATE.board.z = 0;
-      STATE.board.width = 45;
-      STATE.board.height = 1;
-      STATE.board.depth = 15;
-      STATE.exit_x = 21;
-      STATE.camera.x = 22.5;
-      STATE.num_entities = 0;
-
-      add_entity(0, 1, 9, 6, 3, 3);
-      add_entity(0, 1, 6, 3, 3, 3);
-      add_entity(12, 1, 3, 6, 3, 3);
-    } break;
-  }
-
   update_entity(&STATE.player);
 }
 
@@ -237,16 +312,7 @@ void init_game ()
 {
   memset(&STATE, 0, sizeof(STATE));
 
-  STATE.camera.y = 30;
-  STATE.camera.x = 7.5;
-  STATE.camera.z = -7;
-  STATE.camera.speed = 0.1;
-
-  STATE.player.y = 1;
-  STATE.player.speed = 0.65;
-  STATE.player.width = 3;
-  STATE.player.height = 3;
-  STATE.player.depth = 3;
+  init_level_1();
 }
 
 unsigned int* load_texture (const char *file)
@@ -324,10 +390,17 @@ int main (void) {
 
     if (window.keys._1) {
       STATE.current_level = 0;
+      init_level_1();
     }
 
     if (window.keys._2) {
       STATE.current_level = 1;
+      init_level_2();
+    }
+
+    if (window.keys._3) {
+      STATE.current_level = 2;
+      init_level_3();
     }
 
     if (window.keys.enter && !STATE.has_begun) {
