@@ -108,6 +108,23 @@ void draw_entity (entity *e, float *color)
   STATE.text_width = strlen(buf) * 8; \
 }
 
+int entities_have_collided (entity *e1, entity *e2)
+{
+  float e1left = e1->x, e1right = e1->x + e1->width;
+  float e1bottom = e1->z, e1top = e1->z + e1->depth;
+
+  float e2left = e2->x, e2right = e2->x + e2->width;
+  float e2bottom = e2->z, e2top = e2->z + e2->depth;
+
+  if (e1right > (e2left + 0.0001) && e2right > (e1left + 0.0001)) {
+    if (e1top > (e2bottom + 0.0001) && e2top > (e1bottom + 0.0001)) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 void update_entity (entity *e)
 {
   if (e->is_moving) {
@@ -143,11 +160,18 @@ void update_entity (entity *e)
       e->z = STATE.board.z;
       e->move_distance = e->is_moving = 0;
     } else {
-
-      /* check entity collision here? */
+      int i;
 
       e->x += xstep;
       e->z += zstep;
+
+      for (i = 0; i < STATE.num_entities; i++) {
+        if (entities_have_collided(e, &STATE.entities[i])) {
+          e->x -= xstep;
+          e->z -= zstep;
+          return;
+        }
+      }
     }
   }
 }
