@@ -27,6 +27,7 @@ typedef struct {
   struct { float x, z; } direction;
   int is_exiting;
   int is_moving;
+  int index;
 } entity;
 
 struct {
@@ -108,7 +109,7 @@ void draw_entity (entity *e, float *color)
   STATE.text_width = strlen(buf) * 8; \
 }
 
-int entities_have_collided (entity *e1, entity *e2)
+int entity_has_collided_with_entity (entity *e1, entity *e2)
 {
   float e1left = e1->x, e1right = e1->x + e1->width;
   float e1bottom = e1->z, e1top = e1->z + e1->depth;
@@ -121,6 +122,25 @@ int entities_have_collided (entity *e1, entity *e2)
       return 1;
     }
   }
+
+  return 0;
+}
+
+int entity_has_collided_with_walls (entity *e)
+{
+  float left = e->x, right = e->x + e->width;
+  float bottom = e->z, top = e->z + e->depth;
+
+  if (fabs(e->x - STATE.exit_x) < 0.0001 && top > STATE.board.z + STATE.board.depth) {
+    return 0;
+  }
+
+  if (
+    right > STATE.board.x + STATE.board.width + 0.0001 || 
+    left < STATE.board.x - 0.0001 ||
+    top > STATE.board.z + STATE.board.depth + 0.0001 ||
+    bottom < STATE.board.z - 0.0001
+  ) return 1;
 
   return 0;
 }
@@ -141,35 +161,22 @@ void update_entity (entity *e)
     xstep = e->direction.x * speed;
     zstep = e->direction.z * speed;
 
-    /* wall collision */
-    if (e->x + e->width + xstep > STATE.board.x + STATE.board.width) {
-      e->x = STATE.board.x + STATE.board.width - e->width;
-      e->move_distance = e->is_moving = 0;
-    } else if (e->x + xstep < STATE.board.x) {
-      e->x = STATE.board.x;
-      e->move_distance = e->is_moving = 0;
-    } else if (e->z + e->depth + zstep > STATE.board.z + STATE.board.depth) {
-      if (fabs(e->x - STATE.exit_x) > 0.0001) {
-        e->z = STATE.board.z + STATE.board.depth - e->depth;
-        e->move_distance = e->is_moving = 0;
-      } else {
-        e->x += xstep;
-        e->z += zstep;
-      }
-    } else if (e->z + zstep < STATE.board.z) {
-      e->z = STATE.board.z;
+    e->x += xstep;
+    e->z += zstep;
+
+    /* @todo: get remaining distance to the walls/entities if there's a collision */
+
+    if (entity_has_collided_with_walls(e)) {
+      e->x -= xstep;
+      e->z -= zstep;
       e->move_distance = e->is_moving = 0;
     } else {
       int i;
-
-      e->x += xstep;
-      e->z += zstep;
-
       for (i = 0; i < STATE.num_entities; i++) {
-        if (entities_have_collided(e, &STATE.entities[i])) {
+        if (i != e->index && entity_has_collided_with_entity(e, &STATE.entities[i])) {
           e->x -= xstep;
           e->z -= zstep;
-          return;
+          break;
         }
       }
     }
@@ -186,6 +193,7 @@ void add_entity (float x, float y, float z, float w, float h, float d)
   STATE.entities[i].width = w;
   STATE.entities[i].height = h;
   STATE.entities[i].depth = d;
+  STATE.entities[i].index = i;
 }
 
 void draw_frame ()
@@ -214,28 +222,28 @@ void draw_frame ()
   }
 }
 
-void move_player (int direction)
+void move_entity (entity *e, int direction)
 {
   switch (direction) {
     case DIR_FORWARDS: {
-      STATE.player.direction.x = 0;
-      STATE.player.direction.z = 1;
-      STATE.player.move_distance = STATE.player.depth;
+      e->direction.x = 0;
+      e->direction.z = 1;
+      e->move_distance = e->depth;
     } break;
     case DIR_BACKWARDS: {
-      STATE.player.direction.x = 0;
-      STATE.player.direction.z = -1;
-      STATE.player.move_distance = STATE.player.depth;
+      e->direction.x = 0;
+      e->direction.z = -1;
+      e->move_distance = e->depth;
     } break;
     case DIR_LEFT: {
-      STATE.player.direction.z = 0;
-      STATE.player.direction.x = -1;
-      STATE.player.move_distance = STATE.player.width;
+      e->direction.z = 0;
+      e->direction.x = -1;
+      e->move_distance = e->width;
     } break;
     case DIR_RIGHT: {
-      STATE.player.direction.z = 0;
-      STATE.player.direction.x = 1;
-      STATE.player.move_distance = STATE.player.width;
+      e->direction.z = 0;
+      e->direction.x = 1;
+      e->move_distance = e->width;
     } break;
   }
 
@@ -335,7 +343,7 @@ void update_game ()
 void init_game ()
 {
   memset(&STATE, 0, sizeof(STATE));
-
+  STATE.player.index = -1;
   init_level_1();
 }
 
@@ -402,13 +410,13 @@ int main (void) {
 
     if (!STATE.player.is_moving) {
       if (window.keys.up) {
-        move_player(DIR_FORWARDS);
+        move_entity(&STATE.player, DIR_FORWARDS);
       } else if (window.keys.down) {
-        move_player(DIR_BACKWARDS);
+        move_entity(&STATE.player, DIR_BACKWARDS);
       } else if (window.keys.left) {
-        move_player(DIR_LEFT);
+        move_entity(&STATE.player, DIR_LEFT);
       } else if (window.keys.right) {
-        move_player(DIR_RIGHT);
+        move_entity(&STATE.player, DIR_RIGHT);
       }
     }
 
