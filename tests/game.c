@@ -153,44 +153,32 @@ int entity_has_collided_with_walls (entity *e)
 
 float get_x_distance_from_entity (entity *e1, entity *e2)
 {
-  float e1left = e1->x, e1right = e1->x + e1->width;
-  float e2left = e2->x, e2right = e2->x + e2->width;
-
-  float d1 = fabs(e1left - e2right);
-  float d2 = fabs(e2left - e1right);
+  float d1 = fabs(e1->x - (e2->x + e2->width));
+  float d2 = fabs(e2->x - (e1->x + e1->width));
 
   return d1 < d2 ? d1 : d2;
 }
 
 float get_z_distance_from_entity (entity *e1, entity *e2)
 {
-  float e1bottom = e1->z, e1top = e1->z + e1->depth;
-  float e2bottom = e2->z, e2top = e2->z + e2->depth;
-
-  float d1 = fabs(e1bottom - e2top);
-  float d2 = fabs(e2bottom - e1top);
+  float d1 = fabs(e1->z - (e2->z + e2->depth));
+  float d2 = fabs(e2->z - (e1->z + e1->depth));
 
   return d1 < d2 ? d1 : d2;
 }
 
 float get_x_distance_from_wall (entity *e)
 {
-  float eleft = e->x, eright = e->x + e->width;
-  float wleft = STATE.board.x, wright = STATE.board.x + STATE.board.width;
-
-  float d1 = wright - eright;
-  float d2 = eleft - wleft;
+  float d1 = (STATE.board.x + STATE.board.width) - (e->x + e->width);
+  float d2 = e->x - STATE.board.x;
 
   return d1 < d2 ? d1 : d2;
 }
 
 float get_z_distance_from_wall (entity *e)
 {
-  float ebottom = e->z, etop = e->z + e->depth;
-  float wbottom = STATE.board.z, wtop = STATE.board.z + STATE.board.depth;
-
-  float d1 = wtop - etop;
-  float d2 = ebottom - wbottom;
+  float d1 = (STATE.board.z + STATE.board.depth) - (e->z + e->depth);
+  float d2 = e->z - STATE.board.z;
 
   return d1 < d2 ? d1 : d2;
 }
@@ -226,8 +214,6 @@ void update_entity (entity *e)
 
     e->x += xstep;
     e->z += zstep;
-
-    /* @todo: get remaining distance to the walls/entities if there's a collision */
 
     if (entity_has_collided_with_exit(e)) {
       /* don't do anything yet, just keep moving */
