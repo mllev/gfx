@@ -18,6 +18,8 @@
 #define DIR_LEFT 3
 #define DIR_RIGHT 4
 
+#define FP_ERR 0.0001
+
 typedef struct {
   float x, y, z;
   float speed;
@@ -109,21 +111,29 @@ void draw_entity (entity *e, float *color)
   STATE.text_width = strlen(buf) * 8; \
 }
 
-int entity_has_collided_with_entity (entity *e1, entity *e2)
+int entity_has_collided_with_entities (entity *e1)
 {
-  float e1left = e1->x, e1right = e1->x + e1->width;
-  float e1bottom = e1->z, e1top = e1->z + e1->depth;
+  int i;
+  for (i = 0; i < STATE.num_entities; i++) {
+    if (i != e1->index) {
+      float e1left = e1->x, e1right = e1->x + e1->width;
+      float e1bottom = e1->z, e1top = e1->z + e1->depth;
 
-  float e2left = e2->x, e2right = e2->x + e2->width;
-  float e2bottom = e2->z, e2top = e2->z + e2->depth;
+      float e2left = STATE.entities[i].x;
+      float e2right = STATE.entities[i].x + STATE.entities[i].width;
+      float e2bottom = STATE.entities[i].z;
+      float e2top = STATE.entities[i].z + STATE.entities[i].depth;
 
-  if (e1right > (e2left + 0.0001) && e2right > (e1left + 0.0001)) {
-    if (e1top > (e2bottom + 0.0001) && e2top > (e1bottom + 0.0001)) {
-      return 1;
+      if (
+        e1right > (e2left + FP_ERR) &&
+        e2right > (e1left + FP_ERR) &&
+        e1top > (e2bottom + FP_ERR) &&
+        e2top > (e1bottom + FP_ERR)
+      ) return i;
     }
   }
 
-  return 0;
+  return -1;
 }
 
 int entity_has_collided_with_walls (entity *e)
@@ -131,22 +141,75 @@ int entity_has_collided_with_walls (entity *e)
   float left = e->x, right = e->x + e->width;
   float bottom = e->z, top = e->z + e->depth;
 
-  if (fabs(e->x - STATE.exit_x) < 0.0001 && top > STATE.board.z + STATE.board.depth) {
-    return 0;
-  }
-
   if (
-    right > STATE.board.x + STATE.board.width + 0.0001 || 
-    left < STATE.board.x - 0.0001 ||
-    top > STATE.board.z + STATE.board.depth + 0.0001 ||
-    bottom < STATE.board.z - 0.0001
+    left < STATE.board.x - FP_ERR ||
+    right > STATE.board.x + STATE.board.width + FP_ERR ||
+    top > STATE.board.z + STATE.board.depth + FP_ERR ||
+    bottom < STATE.board.z - FP_ERR
   ) return 1;
+
+  return 0;
+}
+
+float get_x_distance_from_entity (entity *e1, entity *e2)
+{
+  float e1left = e1->x, e1right = e1->x + e1->width;
+  float e2left = e2->x, e2right = e2->x + e2->width;
+
+  float d1 = fabs(e1left - e2right);
+  float d2 = fabs(e2left - e1right);
+
+  return d1 < d2 ? d1 : d2;
+}
+
+float get_z_distance_from_entity (entity *e1, entity *e2)
+{
+  float e1bottom = e1->z, e1top = e1->z + e1->depth;
+  float e2bottom = e2->z, e2top = e2->z + e2->depth;
+
+  float d1 = fabs(e1bottom - e2top);
+  float d2 = fabs(e2bottom - e1top);
+
+  return d1 < d2 ? d1 : d2;
+}
+
+float get_x_distance_from_wall (entity *e)
+{
+  float eleft = e->x, eright = e->x + e->width;
+  float wleft = STATE.board.x, wright = STATE.board.x + STATE.board.width;
+
+  float d1 = wright - eright;
+  float d2 = eleft - wleft;
+
+  return d1 < d2 ? d1 : d2;
+}
+
+float get_z_distance_from_wall (entity *e)
+{
+  float ebottom = e->z, etop = e->z + e->depth;
+  float wbottom = STATE.board.z, wtop = STATE.board.z + STATE.board.depth;
+
+  float d1 = wtop - etop;
+  float d2 = ebottom - wbottom;
+
+  return d1 < d2 ? d1 : d2;
+}
+
+int entity_has_collided_with_exit (entity *e)
+{
+  float top = e->z + e->depth;
+
+  if (fabs(e->x - STATE.exit_x) < FP_ERR && top > STATE.board.z + STATE.board.depth) {
+    return 1;
+  }
 
   return 0;
 }
 
 void update_entity (entity *e)
 {
+  int eid;
+
   if (e->is_moving) {
     float speed = e->speed;
     float xstep, zstep;
@@ -166,19 +229,34 @@ void update_entity (entity *e)
 
     /* @todo: get remaining distance to the walls/entities if there's a collision */
 
-    if (entity_has_collided_with_walls(e)) {
+    if (entity_has_collided_with_exit(e)) {
+      /* don't do anything yet, just keep moving */
+    } else if (entity_has_collided_with_walls(e)) {
+      float xdist, zdist;
+
       e->x -= xstep;
       e->z -= zstep;
+
+      xdist = get_x_distance_from_wall(e);
+      zdist = get_z_distance_from_wall(e);
+
+      if (xdist > FP_ERR) { e->x += e->direction.x * xdist; }
+      if (zdist > FP_ERR) { e->z += e->direction.z * zdist; }
+
       e->move_distance = e->is_moving = 0;
-    } else {
-      int i;
-      for (i = 0; i < STATE.num_entities; i++) {
-        if (i != e->index && entity_has_collided_with_entity(e, &STATE.entities[i])) {
-          e->x -= xstep;
-          e->z -= zstep;
-          break;
-        }
-      }
+    } else if ((eid = entity_has_collided_with_entities(e)) > -1) {
+      float xdist, zdist;
+
+      e->x -= xstep;
+      e->z -= zstep;
+
+      xdist = get_x_distance_from_entity(e, &STATE.entities[eid]);
+      zdist = get_z_distance_from_entity(e, &STATE.entities[eid]);
+
+      if (xdist > FP_ERR) { e->x += e->direction.x * xdist; }
+      if (zdist > FP_ERR) { e->z += e->direction.z * zdist; }
+
+      e->move_distance = e->is_moving = 0;
     }
   }
 }
@@ -335,6 +413,37 @@ void init_level_3 ()
   add_entity(12, 1, 3, 6, 3, 3);
 }
 
+void init_level_4 ()
+{
+  STATE.board.x = 0;
+  STATE.board.z = 0;
+  STATE.board.width = 45;
+  STATE.board.height = 1;
+  STATE.board.depth = 15;
+
+  STATE.exit_x = 22.5;
+
+  STATE.camera.y = 30;
+  STATE.camera.x = 22.5;
+  STATE.camera.z = -7;
+  STATE.camera.speed = 0.1;
+
+  STATE.player.x = 0;
+  STATE.player.z = 0;
+  STATE.player.y = 1;
+  STATE.player.speed = 0.65;
+  STATE.player.width = 3;
+  STATE.player.height = 3;
+  STATE.player.depth = 3;
+  STATE.player.is_exiting = 0;
+
+  STATE.num_entities = 0;
+
+  add_entity(0, 1, 9, 6, 3, 3);
+  add_entity(0, 1, 6, 3, 3, 3);
+  add_entity(13.5, 1, 3, 6, 3, 3);
+}
+
 void update_game ()
 {
   update_entity(&STATE.player);
@@ -433,6 +542,11 @@ int main (void) {
     if (window.keys._3) {
       STATE.current_level = 2;
       init_level_3();
+    }
+
+    if (window.keys._4) {
+      STATE.current_level = 3;
+      init_level_4();
     }
 
     if (window.keys.enter && !STATE.has_begun) {
