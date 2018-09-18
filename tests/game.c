@@ -151,36 +151,9 @@ int entity_has_collided_with_walls (entity *e)
   return 0;
 }
 
-float get_x_distance_from_entity (entity *e1, entity *e2)
+float min_float_2 (float a, float b)
 {
-  float d1 = fabs(e1->x - (e2->x + e2->width));
-  float d2 = fabs(e2->x - (e1->x + e1->width));
-
-  return d1 < d2 ? d1 : d2;
-}
-
-float get_z_distance_from_entity (entity *e1, entity *e2)
-{
-  float d1 = fabs(e1->z - (e2->z + e2->depth));
-  float d2 = fabs(e2->z - (e1->z + e1->depth));
-
-  return d1 < d2 ? d1 : d2;
-}
-
-float get_x_distance_from_wall (entity *e)
-{
-  float d1 = (STATE.board.x + STATE.board.width) - (e->x + e->width);
-  float d2 = e->x - STATE.board.x;
-
-  return d1 < d2 ? d1 : d2;
-}
-
-float get_z_distance_from_wall (entity *e)
-{
-  float d1 = (STATE.board.z + STATE.board.depth) - (e->z + e->depth);
-  float d2 = e->z - STATE.board.z;
-
-  return d1 < d2 ? d1 : d2;
+  return a < b ? a : b;
 }
 
 int entity_has_collided_with_exit (entity *e)
@@ -223,8 +196,9 @@ void update_entity (entity *e)
       e->x -= xstep;
       e->z -= zstep;
 
-      xdist = get_x_distance_from_wall(e);
-      zdist = get_z_distance_from_wall(e);
+      /* get minumum distance to wall */
+      xdist = min_float_2((STATE.board.x + STATE.board.width) - (e->x + e->width), e->x - STATE.board.x);
+      zdist = min_float_2((STATE.board.z + STATE.board.depth) - (e->z + e->depth), e->z - STATE.board.z);
 
       if (xdist > FP_ERR) { e->x += e->direction.x * xdist; }
       if (zdist > FP_ERR) { e->z += e->direction.z * zdist; }
@@ -236,8 +210,9 @@ void update_entity (entity *e)
       e->x -= xstep;
       e->z -= zstep;
 
-      xdist = get_x_distance_from_entity(e, &STATE.entities[eid]);
-      zdist = get_z_distance_from_entity(e, &STATE.entities[eid]);
+      /* get minimum distance to entity */
+      xdist = min_float_2(fabs(e1->x - (e2->x + e2->width)), fabs(e2->x - (e1->x + e1->width)));
+      zdist = min_float_2(fabs(e1->z - (e2->z + e2->depth)), fabs(e2->z - (e1->z + e1->depth)));
 
       if (xdist > FP_ERR) { e->x += e->direction.x * xdist; }
       if (zdist > FP_ERR) { e->z += e->direction.z * zdist; }
