@@ -125,10 +125,8 @@ int entity_has_collided_with_entities (entity *e1)
       float e2top = STATE.entities[i].z + STATE.entities[i].depth;
 
       if (
-        e1right > (e2left + FP_ERR) &&
-        e2right > (e1left + FP_ERR) &&
-        e1top > (e2bottom + FP_ERR) &&
-        e2top > (e1bottom + FP_ERR)
+        e1right > (e2left + FP_ERR) && e2right > (e1left + FP_ERR) &&
+        e1top > (e2bottom + FP_ERR) && e2top > (e1bottom + FP_ERR)
       ) return i;
     }
   }
@@ -206,13 +204,14 @@ void update_entity (entity *e)
       e->move_distance = e->is_moving = 0;
     } else if ((eid = entity_has_collided_with_entities(e)) > -1) {
       float xdist, zdist;
+      entity *e2 = &STATE.entities[eid];
 
       e->x -= xstep;
       e->z -= zstep;
 
       /* get minimum distance to entity */
-      xdist = min_float_2(fabs(e1->x - (e2->x + e2->width)), fabs(e2->x - (e1->x + e1->width)));
-      zdist = min_float_2(fabs(e1->z - (e2->z + e2->depth)), fabs(e2->z - (e1->z + e1->depth)));
+      xdist = min_float_2(fabs(e->x - (e2->x + e2->width)), fabs(e2->x - (e->x + e->width)));
+      zdist = min_float_2(fabs(e->z - (e2->z + e2->depth)), fabs(e2->z - (e->z + e->depth)));
 
       if (xdist > FP_ERR) { e->x += e->direction.x * xdist; }
       if (zdist > FP_ERR) { e->z += e->direction.z * zdist; }
@@ -382,7 +381,7 @@ void init_level_4 ()
   STATE.board.height = 1;
   STATE.board.depth = 15;
 
-  STATE.exit_x = 22.5;
+  STATE.exit_x = 7.5;
 
   STATE.camera.y = 30;
   STATE.camera.x = 22.5;
@@ -400,9 +399,7 @@ void init_level_4 ()
 
   STATE.num_entities = 0;
 
-  add_entity(0, 1, 9, 6, 3, 3);
-  add_entity(0, 1, 6, 3, 3, 3);
-  add_entity(13.5, 1, 3, 6, 3, 3);
+  add_entity(18, 1, 9, 7.5, 3, 3);
 }
 
 void update_game ()
