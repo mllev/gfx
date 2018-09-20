@@ -29,6 +29,7 @@ typedef struct {
   struct { float x, z; } direction;
   int is_exiting;
   int is_moving;
+  int is_movable;
   int index;
 } entity;
 
@@ -203,25 +204,36 @@ void update_entity (entity *e)
 
       e->move_distance = e->is_moving = 0;
     } else if ((eid = entity_has_collided_with_entities(e)) > -1) {
-      float xdist, zdist;
       entity *e2 = &STATE.entities[eid];
 
-      e->x -= xstep;
-      e->z -= zstep;
+      /* @todo: if it isn't movable OR it is movable but it can't move */
+      if (!e2->is_movable) {
+        float xdist, zdist;
 
-      /* get minimum distance to entity */
-      xdist = min_float_2(fabs(e->x - (e2->x + e2->width)), fabs(e2->x - (e->x + e->width)));
-      zdist = min_float_2(fabs(e->z - (e2->z + e2->depth)), fabs(e2->z - (e->z + e->depth)));
+        e->x -= xstep;
+        e->z -= zstep;
 
-      if (xdist > FP_ERR) { e->x += e->direction.x * xdist; }
-      if (zdist > FP_ERR) { e->z += e->direction.z * zdist; }
+        /* get minimum distance to entity */
+        xdist = min_float_2(fabs(e->x - (e2->x + e2->width)), fabs(e2->x - (e->x + e->width)));
+        zdist = min_float_2(fabs(e->z - (e2->z + e2->depth)), fabs(e2->z - (e->z + e->depth)));
 
-      e->move_distance = e->is_moving = 0;
+        if (xdist > FP_ERR) { e->x += e->direction.x * xdist; }
+        if (zdist > FP_ERR) { e->z += e->direction.z * zdist; }
+
+        e->move_distance = e->is_moving = 0;
+      } else {
+        /* @todo: wrong */
+        e2->direction.x = e->direction.x;
+        e2->direction.z = e->direction.z;
+        e2->move_distance = e->move_distance + speed;
+        e2->speed = speed;
+        e2->is_moving = 1;
+      }
     }
   }
 }
 
-void add_entity (float x, float y, float z, float w, float h, float d)
+void add_entity (float x, float y, float z, float w, float h, float d, int movable)
 {
   int i = STATE.num_entities++;
 
@@ -232,6 +244,7 @@ void add_entity (float x, float y, float z, float w, float h, float d)
   STATE.entities[i].height = h;
   STATE.entities[i].depth = d;
   STATE.entities[i].index = i;
+  STATE.entities[i].is_movable = movable;
 }
 
 void draw_frame ()
@@ -260,28 +273,28 @@ void draw_frame ()
   }
 }
 
-void move_entity (entity *e, int direction)
+void move_entity (entity *e, int direction, float amt)
 {
   switch (direction) {
     case DIR_FORWARDS: {
       e->direction.x = 0;
       e->direction.z = 1;
-      e->move_distance = e->depth;
+      e->move_distance = amt;
     } break;
     case DIR_BACKWARDS: {
       e->direction.x = 0;
       e->direction.z = -1;
-      e->move_distance = e->depth;
+      e->move_distance = amt;
     } break;
     case DIR_LEFT: {
       e->direction.z = 0;
       e->direction.x = -1;
-      e->move_distance = e->width;
+      e->move_distance = amt;
     } break;
     case DIR_RIGHT: {
       e->direction.z = 0;
       e->direction.x = 1;
-      e->move_distance = e->width;
+      e->move_distance = amt;
     } break;
   }
 
@@ -368,9 +381,9 @@ void init_level_3 ()
 
   STATE.num_entities = 0;
 
-  add_entity(0, 1, 9, 6, 3, 3);
-  add_entity(0, 1, 6, 3, 3, 3);
-  add_entity(12, 1, 3, 6, 3, 3);
+  add_entity(0, 1, 9, 6, 3, 3, 1);
+  add_entity(0, 1, 6, 3, 3, 3, 1);
+  add_entity(12, 1, 3, 6, 3, 3, 1);
 }
 
 void init_level_4 ()
@@ -399,12 +412,18 @@ void init_level_4 ()
 
   STATE.num_entities = 0;
 
-  add_entity(18, 1, 9, 7.5, 3, 3);
+  add_entity(18, 1, 9, 7.5, 3, 3, 0);
 }
 
 void update_game ()
 {
+  int i;
+
   update_entity(&STATE.player);
+
+  for (i = 0; i < STATE.num_entities; i++) {
+    update_entity(&STATE.entities[i]);
+  }
 }
 
 void init_game ()
@@ -477,13 +496,13 @@ int main (void) {
 
     if (!STATE.player.is_moving) {
       if (window.keys.up) {
-        move_entity(&STATE.player, DIR_FORWARDS);
+        move_entity(&STATE.player, DIR_FORWARDS, STATE.player.depth);
       } else if (window.keys.down) {
-        move_entity(&STATE.player, DIR_BACKWARDS);
+        move_entity(&STATE.player, DIR_BACKWARDS, STATE.player.depth);
       } else if (window.keys.left) {
-        move_entity(&STATE.player, DIR_LEFT);
+        move_entity(&STATE.player, DIR_LEFT, STATE.player.width);
       } else if (window.keys.right) {
-        move_entity(&STATE.player, DIR_RIGHT);
+        move_entity(&STATE.player, DIR_RIGHT, STATE.player.width);
       }
     }
 
