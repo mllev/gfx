@@ -28,6 +28,7 @@ typedef unsigned int u32;
 #define GFX_FRACBITS 16
 #define gfx_fixed16(x) ((u32)(x * 65535))
 
+typedef struct _gfxuv gfxuv;
 typedef struct _gfxv2 gfxv2;
 typedef struct _gfxv3 gfxv3;
 typedef struct _gfxv4 gfxv4;
@@ -38,6 +39,7 @@ typedef struct _gfxpoly gfxpoly;
 typedef struct _gfxedge gfxedge;
 typedef struct _gfxnormal gfxnormal;
 
+struct _gfxuv { float u, v; };
 struct _gfxv2 { float x, y; };
 struct _gfxv3 { float x, y, z; };
 struct _gfxv4 { float x, y, z, w; };
@@ -70,6 +72,10 @@ struct _gfxedge {
 };
 
 struct _gfxpoly {
+  struct {
+    int index;
+    gfxuv uv;
+  } vertices[3];
   int v1, v2, v3;
   float r, g, b;
   int uvs;
@@ -107,12 +113,56 @@ struct _gfx {
 
   gfxm4 model;
   gfxm4 view;
+  gfxm4 projection;
   gfxm4 transform;
 
   gfxm4* active;
 
   gfxvert vertex_pipe[GFX_MAX_VERTICES];
   gfxpoly visible[GFX_MAX_FACES];
+};
+
+enum {
+  GFX_PRIMITIVE_QUAD,
+  GFX_PRIMITIVE_CUBE,
+  GFX_PRIMITIVE_TRIANGLE
+};
+
+float gfx_triangle_vertices[] = {
+  -1.0, -1.0, 0.0,
+   0.0,  1.0, 0.0,
+   1.0, -1.0, 0.0
+};
+
+float gfx_quad_vertices[] = {
+  -1.0, -1.0, 0.0,
+  -1.0,  1.0, 0.0,
+   1.0,  1.0, 0.0,
+   1.0, -1.0, 0.0
+};
+
+float gfx_cube_vertices[] = {
+  0.0, 0.0, 0.0,
+  0.0, 0.0, 1.0,
+  0.0, 1.0, 0.0,
+  0.0, 1.0, 1.0,
+  1.0, 0.0, 0.0,
+  1.0, 0.0, 1.0,
+  1.0, 1.0, 0.0,
+  1.0, 1.0, 1.0
+};
+
+int gfx_triangle_indices[] = {
+  0, 1, 2
+};
+
+int gfx_quad_indices[] = {
+  0, 1, 2, 2, 3, 0
+};
+
+int gfx_cube_indices[] = {
+  0, 6, 4, 0, 2, 6, 0, 3, 2, 0, 1, 3, 2, 7, 6, 2, 3, 7,
+  4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 1, 5, 7, 1, 7, 3
 };
 
 int gfx_init(void);
@@ -122,6 +172,7 @@ void gfx_clear(void);
 void gfx_bind_render_target(u32*, int, int);
 void gfx_bind_depth_buffer(float*);
 void gfx_bind_arrays(float*, int, int*, int);
+void gfx_bind_primitive(unsigned char type);
 void gfx_bind_attr(int, float*);
 void gfx_bind_texture(u32*, int, int);
 
@@ -219,8 +270,10 @@ static void gfx_m4_ident (gfxm4 *m)
   m->_30 = 0; m->_31 = 0; m->_32 = 0; m->_33 = 1;
 }
 
-static void gfx_project_to_screen (gfxv2 *s, gfxv4 *v)
+static void gfx_project_to_screen (gfxvert* vert)
 {
+  gfxv4 *v = &vert->camera_space;
+  gfxv2 *s = &vert->screen_space;
   float zinv = 1.0f / v->z;
 
   s->x = ((v->x * GFX.x_scale * zinv) + 1.0f) * (GFX.target_width / 2);
@@ -261,6 +314,19 @@ static void gfx_m4_translation (gfxm4 *m, float x, float y, float z)
   m->_10 = 0;  m->_11 = 1;  m->_12 = 0;  m->_13 = y;
   m->_20 = 0;  m->_21 = 0;  m->_22 = 1;  m->_23 = z;
   m->_30 = 0;  m->_31 = 0;  m->_32 = 0;  m->_33 = 1;
+}
+
+static void gfx_m4_perspective (gfxm4 *m, float fov, float ar, float nearz, float farz)
+{
+  float f = 1.0 / tanf(fov / 2);
+  float range = nearz - farz;
+
+  m->_00 = f / ar;
+  m->_11 = f;
+  m->_22 = -(nearz + farz) / range;
+  m->_23 = (2 * farz * nearz) / range;
+  m->_32 = 1;
+  m->_33 = 0;
 }
 
 static float gfx_v4_length (gfxv4 *v)
@@ -344,11 +410,26 @@ static void gfx_lerp (gfxv4 *out, gfxv4 *v1, gfxv4 *v2, float step, float amt)
 
 static void gfx_add_visible_indexed (int i, int v1, int v2, int v3, int c, float brightness)
 {
+  gfx_project_to_screen(&GFX.vertex_pipe[v1]);
+  gfx_project_to_screen(&GFX.vertex_pipe[v2]);
+  gfx_project_to_screen(&GFX.vertex_pipe[v3]);
+
   GFX.visible[i].v1 = v1;
   GFX.visible[i].v2 = v2;
   GFX.visible[i].v3 = v3;
 
+  GFX.visible[i].vertices[0].index = v1;
+  GFX.visible[i].vertices[1].index = v2;
+  GFX.visible[i].vertices[2].index = v3;
+
   if (GFX.uvs) {
+    GFX.visible[i].vertices[0].uv.u = GFX.uvs[c*2];
+    GFX.visible[i].vertices[0].uv.v = GFX.uvs[c*2+1];
+    GFX.visible[i].vertices[1].uv.u = GFX.uvs[c*2+2];
+    GFX.visible[i].vertices[1].uv.v = GFX.uvs[c*2+3];
+    GFX.visible[i].vertices[2].uv.u = GFX.uvs[c*2+4];
+    GFX.visible[i].vertices[2].uv.v = GFX.uvs[c*2+5];
+
     GFX.visible[i].uvs = c * 2; /* because there are 6 numbers per face for the uvs and 3 for the colors */
     GFX.visible[i].brightness = brightness;
   } else if (GFX.colors) {
@@ -465,6 +546,23 @@ void gfx_bind_arrays (float *vertices, int vsize, int *indices, int isize)
   GFX.index_count = isize;
 }
 
+void gfx_bind_primitive (unsigned char ptype)
+{
+  switch (ptype) {
+  case GFX_PRIMITIVE_CUBE:
+    gfx_bind_arrays(gfx_cube_vertices, 8, gfx_cube_indices, 12);
+    break;
+  case GFX_PRIMITIVE_QUAD:
+    gfx_bind_arrays(gfx_quad_vertices, 4, gfx_quad_indices, 2);
+    break;
+  case GFX_PRIMITIVE_TRIANGLE:
+    gfx_bind_arrays(gfx_triangle_vertices, 3, gfx_triangle_indices, 3);
+    break;
+  default:
+    break;
+  }
+}
+
 void gfx_bind_attr (int attr, float *data)
 {
   switch (attr) {
@@ -514,6 +612,14 @@ void gfx_scale (float x, float y, float z)
   gfxm4 scale;
   gfx_m4_scale(&scale, x, y, z);
   gfx_m4_mult(&GFX.transform, GFX.active, &scale);
+  gfx_m4_copy(GFX.active, &GFX.transform);
+}
+
+void gfx_perspective (float fov, float ar, float nearz, float farz)
+{
+  gfxm4 perspective;
+  gfx_m4_perspective(&perspective, fov, ar, nearz, farz);
+  gfx_m4_mult(&GFX.transform, GFX.active, &perspective);
   gfx_m4_copy(GFX.active, &GFX.transform);
 }
 
@@ -768,22 +874,27 @@ void gfx_draw_triangle (gfxpoly *tri)
   unsigned int color;
   int r, g, b;
   float u1, v1, u2, v2, u3, v3;
+  int i1, i2, i3;
 
-  vert1 = &GFX.vertex_pipe[tri->v1].screen_space;
-  vert2 = &GFX.vertex_pipe[tri->v2].screen_space;
-  vert3 = &GFX.vertex_pipe[tri->v3].screen_space;
+  i1 = tri->vertices[0].index;
+  i2 = tri->vertices[1].index;
+  i3 = tri->vertices[2].index;
 
-  z1 = 1.0 / GFX.vertex_pipe[tri->v1].camera_space.z;
-  z2 = 1.0 / GFX.vertex_pipe[tri->v2].camera_space.z;
-  z3 = 1.0 / GFX.vertex_pipe[tri->v3].camera_space.z;
+  vert1 = &GFX.vertex_pipe[i1].screen_space;
+  vert2 = &GFX.vertex_pipe[i2].screen_space;
+  vert3 = &GFX.vertex_pipe[i3].screen_space;
+
+  z1 = 1.0 / GFX.vertex_pipe[i1].camera_space.z;
+  z2 = 1.0 / GFX.vertex_pipe[i2].camera_space.z;
+  z3 = 1.0 / GFX.vertex_pipe[i3].camera_space.z;
 
   if (tri->uvs != -1) {
-    u1 = GFX.uvs[tri->uvs+0] * z1;
-    v1 = GFX.uvs[tri->uvs+1] * z1;
-    u2 = GFX.uvs[tri->uvs+2] * z2;
-    v2 = GFX.uvs[tri->uvs+3] * z2;
-    u3 = GFX.uvs[tri->uvs+4] * z3;
-    v3 = GFX.uvs[tri->uvs+5] * z3;
+    u1 = tri->vertices[0].uv.u * z1;
+    v1 = tri->vertices[0].uv.v * z1;
+    u2 = tri->vertices[1].uv.u * z2;
+    v2 = tri->vertices[1].uv.v * z2;
+    u3 = tri->vertices[2].uv.u * z3;
+    v3 = tri->vertices[2].uv.v * z3;
   } else {
     r = (int)(tri->r * tri->brightness * 255) << 16;
     g = (int)(tri->g * tri->brightness * 255) <<  8;
@@ -837,14 +948,28 @@ void gfx_draw_mode (int mode)
   GFX.draw_mode = mode;
 }
 
-
-float grow_amt = 0.0;
-
-
 static void gfx_vertex_shader (gfxv4 *out, gfxv4 *in, gfxm4 *mv, int index)
 {
   gfx_v4_mult(out, in, mv);
 }
+
+#if 0
+static void gfx_zclip (gfxvert *in, gfxvert *out)
+{
+  int i = 0, prev = 2;
+  for (; i < 3; i++) {
+    if (in[i].camera_space.z <= GFX.near_plane) {
+      if (in[prev].camera_space.z > GFX.near_plane) {
+        /* lerp from verts[prev] to verts[i] */
+        /* store new vert */
+      }
+    } else {
+      /* vert is good to store */
+    }
+    prev = i;
+  }
+}
+#endif
 
 void gfx_draw_arrays (int start, int end)
 {
@@ -884,10 +1009,6 @@ void gfx_draw_arrays (int start, int end)
     if (pv1->clip_flags & pv2->clip_flags & pv3->clip_flags) {
       continue;
     }
-
-    gfx_project_to_screen(&pv1->screen_space, &pv1->camera_space);
-    gfx_project_to_screen(&pv2->screen_space, &pv2->camera_space);
-    gfx_project_to_screen(&pv3->screen_space, &pv3->camera_space);
 
     /* calculate color from lights here */
     {
@@ -939,9 +1060,6 @@ void gfx_draw_arrays (int start, int end)
       _zclip(pv1, pv2, pv3, i1, i2, i3);
       _zclip(pv2, pv3, pv1, i2, i3, i1);
       _zclip(pv3, pv1, pv2, i3, i1, i2);
-
-      gfx_project_to_screen(&pipe[v1].screen_space, &pipe[v1].camera_space);
-      gfx_project_to_screen(&pipe[v2].screen_space, &pipe[v2].camera_space);
     } else {
       gfx_add_visible_indexed(pidx++, i1, i2, i3, i, brightness);
     }

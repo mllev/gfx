@@ -11,8 +11,6 @@
 #define BMPREAD_IMPLEMENT
 #include "../deps/bmpread.h"
 
-#include "../src/geometry.h"
-
 #define DIR_FORWARDS 1
 #define DIR_BACKWARDS 2
 #define DIR_LEFT 3
@@ -69,7 +67,7 @@ void draw_board ()
   gfx_matrix_mode(GFX_MODEL_MATRIX);
   gfx_identity();
   gfx_scale(STATE.board.width, STATE.board.height, STATE.board.depth);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_primitive(GFX_PRIMITIVE_CUBE);
   gfx_bind_attr(GFX_ATTR_RGB, blue_color);
   gfx_draw_arrays(0, -1);
 }
@@ -77,7 +75,7 @@ void draw_board ()
 void draw_exit (float x_pos, float *color)
 {
   gfx_matrix_mode(GFX_MODEL_MATRIX);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_primitive(GFX_PRIMITIVE_CUBE);
   gfx_bind_attr(GFX_ATTR_RGB, color);
 
   gfx_identity();
@@ -102,7 +100,7 @@ void draw_entity (entity *e, float *color)
   gfx_identity();
   gfx_translate(e->x, e->y, e->z);
   gfx_scale(e->width, e->height, e->depth);
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_primitive(GFX_PRIMITIVE_CUBE);
   gfx_bind_attr(GFX_ATTR_RGB, color);
   gfx_draw_arrays(0, -1);
 }

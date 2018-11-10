@@ -19,8 +19,6 @@ options:
 #define GFX_IMPLEMENT
 #include "../src/gfx.h"
 
-#include "../src/geometry.h"
-
 float cube_colors[] = {
   1.0, 0.0, 0.0,
   1.0, 0.0, 0.0,
@@ -63,7 +61,7 @@ void draw_cube (float rotate_amt, float x, float y, float z, unsigned int *textu
   gfx_scale(10, 10, 10); /* step 2: make larger */
   gfx_translate(-0.5, -0.5, -0.5); /* step 1: move to center */
 
-  gfx_bind_arrays(cube_vertices, 8, cube_indices, 12);
+  gfx_bind_primitive(GFX_PRIMITIVE_CUBE);
   gfx_bind_attr(GFX_ATTR_UVS, cube_uvs);
   gfx_bind_texture(texture, 64, 64);
   /* gfx_bind_attr(GFX_ATTR_COLORS, cube_colors); */
