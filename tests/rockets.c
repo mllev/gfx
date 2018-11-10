@@ -119,7 +119,10 @@ int main (void) {
       }
     }
 
-    camera_z = (current_rocket_speed / max_rocket_speed) * (50 - 15) + 15;
+    {
+      float frac = current_rocket_speed / max_rocket_speed;
+      camera_z = (frac * frac) * (50 - 15) + 15;
+    }
 
     if (window.keys.left) {
       rocket.rotation += 0.1;
@@ -150,10 +153,10 @@ int main (void) {
           index = current_bullet_index = 0;
         }
 
-        rocket.bullets[index].position.x = rocket.position.x;
-        rocket.bullets[index].position.y = rocket.position.y;
-        rocket.bullets[index].velocity.x = rocket.forward.x * current_rocket_speed;
-        rocket.bullets[index].velocity.y = rocket.forward.y * current_rocket_speed;
+        rocket.bullets[index].velocity.x = rocket.forward.x * (2 + current_rocket_speed);
+        rocket.bullets[index].velocity.y = rocket.forward.y * (2 + current_rocket_speed);
+        rocket.bullets[index].position.x = rocket.position.x + rocket.bullets[index].velocity.x;
+        rocket.bullets[index].position.y = rocket.position.y + rocket.bullets[index].velocity.y;
 
         enter_detected = 1;
       }
