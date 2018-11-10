@@ -157,7 +157,7 @@ int gfx_triangle_indices[] = {
 };
 
 int gfx_quad_indices[] = {
-  0, 1, 2, 2, 3, 0
+  0, 1, 2, 0, 2, 3
 };
 
 int gfx_cube_indices[] = {
