@@ -27,10 +27,7 @@ struct _rocket {
   struct {
     Vec2 position;
     Vec2 velocity;
-  } bullets[51]; /* making this 50 causes a bizarre bug where the entire background disappears 
-    also: changing the ordering of the indices of the quad primitive type (even if they remain clockwise)
-    causes a bug where a line connects to the previously drawn mesh in wireframe mode
-  */
+  } bullets[50];
 
   int num_bullets;
 
@@ -65,6 +62,8 @@ void Rocket_init(Rocket *r)
   r->forward.y = 1.0;
   r->velocity.x = 0.0;
   r->velocity.y = 0.0;
+  r->position.x = 0.0;
+  r->position.y = 0.0;
   r->num_bullets = 0;
 }
 
@@ -81,6 +80,9 @@ int main (void) {
   Rocket rocket;
   char debug_string[50];
   float rotate_amt = 0.0;
+  int current_bullet_index = 0;
+
+  int enter_detected = 0;
 
   depthbuffer = (float *)malloc((width * height) * sizeof(float));
   framebuffer = (unsigned int *)malloc((width * height) * sizeof(unsigned int));
@@ -93,8 +95,6 @@ int main (void) {
   gfx_bind_render_target(framebuffer, width, height);
   gfx_bind_depth_buffer(depthbuffer);
   gfx_set_projection(70, (float)width / (float)height, 1);
-
-  /* gfx_draw_mode(GFX_WIREFRAE_MODE); */
 
   for (i = 0; i < 1000; i++) {
     background[i].x = (float)(rand() % 500);
@@ -140,15 +140,25 @@ int main (void) {
     }
 
     if (window.keys.enter) {
-      int index = rocket.num_bullets++;
-      if (index < 50) {
+      if (!enter_detected) {
+        int index;
+        if (rocket.num_bullets < 50) {
+          index = rocket.num_bullets++;
+        } else if (current_bullet_index <= 49 ) {
+          index = current_bullet_index++;
+        } else {
+          index = current_bullet_index = 0;
+        }
+
         rocket.bullets[index].position.x = rocket.position.x;
         rocket.bullets[index].position.y = rocket.position.y;
         rocket.bullets[index].velocity.x = rocket.forward.x * current_rocket_speed;
         rocket.bullets[index].velocity.y = rocket.forward.y * current_rocket_speed;
-      } else if (rocket.num_bullets > 0) {
-        rocket.num_bullets--;
+
+        enter_detected = 1;
       }
+    } else {
+      enter_detected = 0;
     }
 
     rocket.position.x += rocket.velocity.x;

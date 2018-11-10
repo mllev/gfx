@@ -1,6 +1,15 @@
 #ifndef _GFX_H
 #define _GFX_H
 
+/* 
+
+bugs
+
+changing the ordering of the indices of the quad primitive type (even if they remain clockwise)
+causes a bug where a line connects to the previously drawn mesh in wireframe mode
+
+*/
+
 #include <math.h> /* sinf cosf fabs */
 
 typedef unsigned int u32;
