@@ -185,7 +185,7 @@ void gfx_bind_primitive(unsigned char type);
 void gfx_bind_attr(int, float*);
 void gfx_bind_texture(u32*, int, int);
 
-void gfx_draw_arrays(int, int);
+int gfx_draw_arrays(int, int);
 void gfx_draw_text_8x8(char[][8], const char *, int, int, int);
 void gfx_draw_line(float, float, float, float, u32);
 
@@ -980,7 +980,7 @@ static void gfx_zclip (gfxvert *in, gfxvert *out)
 }
 #endif
 
-void gfx_draw_arrays (int start, int end)
+int gfx_draw_arrays (int start, int end)
 {
   gfxvert *pv1, *pv2, *pv3;
   gfxv2 *v1, *v2, *v3;
@@ -1091,6 +1091,10 @@ void gfx_draw_arrays (int start, int end)
       }
     }
   } else if (GFX.draw_mode == GFX_FLAT_FILL_MODE) {
+    if (pidx == 0) {
+      return 0;
+    }
+    
     for (i = 0; i < pidx; i++) {
       /* @todo: screen clip */
       if (!gfx_is_backfacing(&GFX.visible[i])) {
@@ -1098,6 +1102,8 @@ void gfx_draw_arrays (int start, int end)
       }
     }
   }
+
+  return 1;
 }
 
 void gfx_draw_text_8x8 (char font[][8], const char *str, int length, int offx, int offy)

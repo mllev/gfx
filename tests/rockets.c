@@ -24,6 +24,46 @@ float vec2_length(Vec2* v)
   return sqrt(v->x * v->x + v->y * v->y);
 }
 
+/* particle stuff */
+#define PARTICLE_MAX 10
+
+typedef struct _particles Particles;
+
+struct _particles {
+  struct {
+    Vec2 position;
+    Vec2 velocity;
+  } data[PARTICLE_MAX];
+
+  int count;
+  int start;
+};
+
+void Particles_init(Particles *p)
+{
+  p->count = 0;
+  p->start = 0;
+}
+
+void Particles_add(Particles *p, Vec2 *position, Vec2 *velocity)
+{
+  int index;
+
+  if (p->count < PARTICLE_MAX) {
+    index = p->count++;
+  } else if (p->start < PARTICLE_MAX ) {
+    index = p->start++;
+  } else {
+    index = p->start = 0;
+  }
+
+  p->data[index].velocity.x = velocity->x;
+  p->data[index].velocity.y = velocity->y;
+
+  p->data[index].position.x = position->x + p->data[index].velocity.x;
+  p->data[index].position.y = position->y + p->data[index].velocity.y;
+}
+
 /* rocket stuff */
 typedef struct _rocket Rocket;
 
@@ -32,14 +72,7 @@ struct _rocket {
   Vec2 forward;
   Vec2 velocity;
 
-  struct {
-    Vec2 position;
-    Vec2 velocity;
-  } bullets[50];
-
-  int current_bullet_index; /* used for fast reuse of array slots */
-
-  int num_bullets;
+  Particles bullets;
 
   int is_slowing;
 
@@ -79,20 +112,7 @@ void Rocket_move_forward(Rocket *r)
 
 void Rocket_fire(Rocket *r)
 {
-  int index;
-
-  if (r->num_bullets < 50) {
-    index = r->num_bullets++;
-  } else if (r->current_bullet_index <= 49 ) {
-    index = r->current_bullet_index++;
-  } else {
-    index = r->current_bullet_index = 0;
-  }
-
-  r->bullets[index].velocity.x = r->forward.x;
-  r->bullets[index].velocity.y = r->forward.y;
-  r->bullets[index].position.x = r->position.x + r->bullets[index].velocity.x;
-  r->bullets[index].position.y = r->position.y + r->bullets[index].velocity.y;
+  Particles_add(&r->bullets, &r->position, &r->forward);
 }
 
 void Rocket_update(Rocket *r)
@@ -118,34 +138,37 @@ void Rocket_render(Rocket *r)
   gfx_bind_attr(GFX_ATTR_RGB, white_color);
   gfx_draw_arrays(0, -1);
 
-  for (i = 0; i < r->num_bullets; i++) {
+  for (i = 0; i < r->bullets.count; i++) {
     gfx_matrix_mode(GFX_MODEL_MATRIX);
     gfx_identity();
-    gfx_translate(r->bullets[i].position.x, r->bullets[i].position.y, 0);
+    gfx_translate(r->bullets.data[i].position.x, r->bullets.data[i].position.y, 0);
     gfx_scale(0.2, 0.2, 0);
     gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
     gfx_bind_attr(GFX_ATTR_RGB, white_color);
     gfx_draw_arrays(0, -1);
 
-    r->bullets[i].position.x += (r->bullets[i].velocity.x + r->velocity.x);
-    r->bullets[i].position.y += (r->bullets[i].velocity.y + r->velocity.y);
+    r->bullets.data[i].position.x += (r->bullets.data[i].velocity.x + r->velocity.x);
+    r->bullets.data[i].position.y += (r->bullets.data[i].velocity.y + r->velocity.y);
   }
 }
 
 void Rocket_init(Rocket *r)
 {
-  r->speed = 0.1;
-  r->rotation = 0.0;
   r->forward.x = 0.0;
   r->forward.y = 1.0;
+
   r->velocity.x = 0.0;
   r->velocity.y = 0.0;
+
   r->position.x = 0.0;
   r->position.y = 0.0;
-  r->num_bullets = 0;
+
   r->max_speed = 5.0;
-  r->current_bullet_index = 0;
   r->is_slowing = 0;
+  r->speed = 0.1;
+  r->rotation = 0.0;
+
+  Particles_init(&r->bullets);
 }
 
 Vec3 background[1000];
@@ -182,7 +205,8 @@ int main (void) {
   }
 
   Rocket_init(&rocket);
-  camera_z = 15;
+
+  camera_z = 50;
 
   while (!window.quit) {
     start = SDL_GetTicks();
