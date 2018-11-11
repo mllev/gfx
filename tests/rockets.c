@@ -145,6 +145,7 @@ int main (void) {
     if (window.keys.enter) {
       if (!enter_detected) {
         int index;
+
         if (rocket.num_bullets < 50) {
           index = rocket.num_bullets++;
         } else if (current_bullet_index <= 49 ) {
@@ -153,8 +154,8 @@ int main (void) {
           index = current_bullet_index = 0;
         }
 
-        rocket.bullets[index].velocity.x = rocket.forward.x * (2 + current_rocket_speed);
-        rocket.bullets[index].velocity.y = rocket.forward.y * (2 + current_rocket_speed);
+        rocket.bullets[index].velocity.x = rocket.forward.x;
+        rocket.bullets[index].velocity.y = rocket.forward.y;
         rocket.bullets[index].position.x = rocket.position.x + rocket.bullets[index].velocity.x;
         rocket.bullets[index].position.y = rocket.position.y + rocket.bullets[index].velocity.y;
 
@@ -162,14 +163,6 @@ int main (void) {
       }
     } else {
       enter_detected = 0;
-    }
-
-    rocket.position.x += rocket.velocity.x;
-    rocket.position.y += rocket.velocity.y;
-
-    if (!window.keys.w) {
-      rocket.velocity.x *= 0.96;
-      rocket.velocity.y *= 0.96;
     }
 
     gfx_matrix_mode(GFX_VIEW_MATRIX);
@@ -191,13 +184,13 @@ int main (void) {
         gfx_matrix_mode(GFX_MODEL_MATRIX);
         gfx_identity();
         gfx_translate(rocket.bullets[i].position.x, rocket.bullets[i].position.y, 0);
-        gfx_scale(0.2, 0.2, 0.2);
+        gfx_scale(0.2, 0.2, 0);
         gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
         gfx_bind_attr(GFX_ATTR_RGB, white_color);
         gfx_draw_arrays(0, -1);
 
-        rocket.bullets[i].position.x += rocket.bullets[i].velocity.x;
-        rocket.bullets[i].position.y += rocket.bullets[i].velocity.y;
+        rocket.bullets[i].position.x += (rocket.bullets[i].velocity.x + rocket.velocity.x);
+        rocket.bullets[i].position.y += (rocket.bullets[i].velocity.y + rocket.velocity.y);
       }
     }
 
@@ -211,6 +204,14 @@ int main (void) {
         gfx_bind_attr(GFX_ATTR_RGB, red_color);
         gfx_draw_arrays(0, -1);
       }
+    }
+
+    rocket.position.x += rocket.velocity.x;
+    rocket.position.y += rocket.velocity.y;
+
+    if (!window.keys.w) {
+      rocket.velocity.x *= 0.96;
+      rocket.velocity.y *= 0.96;
     }
 
     frame = SDL_GetTicks() - start;
