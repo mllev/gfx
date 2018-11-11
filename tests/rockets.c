@@ -12,12 +12,20 @@ float white_color[] = { 1.0, 1.0, 1.0 };
 float red_color[] = { 1.0, 0.0, 0.0 };
 float blue_color[] = { 0.0, 0.0, 1.0 };
 
-typedef struct _rocket Rocket;
+/* vector stuff */
 typedef struct _vec2 Vec2;
 typedef struct _vec3 Vec3;
 
 struct _vec2 { float x, y; };
 struct _vec3 { float x, y, z; };
+
+float vec2_length(Vec2* v)
+{
+  return sqrt(v->x * v->x + v->y * v->y);
+}
+
+/* rocket stuff */
+typedef struct _rocket Rocket;
 
 struct _rocket {
   Vec2 position;
@@ -29,29 +37,99 @@ struct _rocket {
     Vec2 velocity;
   } bullets[50];
 
+  int current_bullet_index; /* used for fast reuse of array slots */
+
   int num_bullets;
+
+  int is_slowing;
 
   float speed;
   float rotation;
+  float max_speed;
 };
 
-Vec3 background[1000];
-
-float vec2_length(Vec2* v)
+void Rocket_rotate(Rocket *r, float a)
 {
-  return sqrt(v->x * v->x + v->y * v->y);
-}
+  float s, c, x, y;
 
-void Rocket_rotate(Rocket* r, float a)
-{
-  float s = sin(a);
-  float c = cos(a);
+  r->rotation += a;
+  r->forward.x = 0.0;
+  r->forward.y = 1.0;
+
+  s = sin(r->rotation);
+  c = cos(r->rotation);
   
-  float x = c * r->forward.x - s * r->forward.y;
-  float y = s * r->forward.x + c * r->forward.y;
+  x = c * r->forward.x - s * r->forward.y;
+  y = s * r->forward.x + c * r->forward.y;
   
   r->forward.x = x;
   r->forward.y = y;
+}
+
+void Rocket_move_forward(Rocket *r)
+{
+  r->velocity.x += r->forward.x * r->speed;
+  r->velocity.y += r->forward.y * r->speed;
+
+  if (vec2_length(&r->velocity) > r->max_speed) {
+    r->velocity.x -= r->forward.x * r->speed;
+    r->velocity.y -= r->forward.y * r->speed;
+  }
+}
+
+void Rocket_fire(Rocket *r)
+{
+  int index;
+
+  if (r->num_bullets < 50) {
+    index = r->num_bullets++;
+  } else if (r->current_bullet_index <= 49 ) {
+    index = r->current_bullet_index++;
+  } else {
+    index = r->current_bullet_index = 0;
+  }
+
+  r->bullets[index].velocity.x = r->forward.x;
+  r->bullets[index].velocity.y = r->forward.y;
+  r->bullets[index].position.x = r->position.x + r->bullets[index].velocity.x;
+  r->bullets[index].position.y = r->position.y + r->bullets[index].velocity.y;
+}
+
+void Rocket_update(Rocket *r)
+{
+  r->position.x += r->velocity.x;
+  r->position.y += r->velocity.y;
+
+  if (r->is_slowing) {
+    r->velocity.x *= 0.96;
+    r->velocity.y *= 0.96;
+  }
+}
+
+void Rocket_render(Rocket *r)
+{
+  int i;
+
+  gfx_matrix_mode(GFX_MODEL_MATRIX);
+  gfx_identity();
+  gfx_translate(r->position.x, r->position.y, 0);
+  gfx_rotate(0, 0, 1, r->rotation);
+  gfx_bind_primitive(GFX_PRIMITIVE_TRIANGLE);
+  gfx_bind_attr(GFX_ATTR_RGB, white_color);
+  gfx_draw_arrays(0, -1);
+
+  for (i = 0; i < r->num_bullets; i++) {
+    gfx_matrix_mode(GFX_MODEL_MATRIX);
+    gfx_identity();
+    gfx_translate(r->bullets[i].position.x, r->bullets[i].position.y, 0);
+    gfx_scale(0.2, 0.2, 0);
+    gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
+    gfx_bind_attr(GFX_ATTR_RGB, white_color);
+    gfx_draw_arrays(0, -1);
+
+    r->bullets[i].position.x += (r->bullets[i].velocity.x + r->velocity.x);
+    r->bullets[i].position.y += (r->bullets[i].velocity.y + r->velocity.y);
+  }
 }
 
 void Rocket_init(Rocket *r)
@@ -65,7 +143,12 @@ void Rocket_init(Rocket *r)
   r->position.x = 0.0;
   r->position.y = 0.0;
   r->num_bullets = 0;
+  r->max_speed = 5.0;
+  r->current_bullet_index = 0;
+  r->is_slowing = 0;
 }
+
+Vec3 background[1000];
 
 int main (void) {
   window_t window;
@@ -75,12 +158,8 @@ int main (void) {
   unsigned int frame, start;
   int i;
   float camera_z;
-  float current_rocket_speed;
-  float max_rocket_speed = 5.0;
   Rocket rocket;
   char debug_string[50];
-  float rotate_amt = 0.0;
-  int current_bullet_index = 0;
 
   int enter_detected = 0;
 
@@ -107,92 +186,44 @@ int main (void) {
 
   while (!window.quit) {
     start = SDL_GetTicks();
-    current_rocket_speed = vec2_length(&rocket.velocity);
 
+    /* event handling */
     if (window.keys.w) {
-      rocket.velocity.x += rocket.forward.x * rocket.speed;
-      rocket.velocity.y += rocket.forward.y * rocket.speed;
-
-      if (vec2_length(&rocket.velocity) > max_rocket_speed) {
-        rocket.velocity.x -= rocket.forward.x * rocket.speed;
-        rocket.velocity.y -= rocket.forward.y * rocket.speed;
-      }
-    }
-
-    {
-      float frac = current_rocket_speed / max_rocket_speed;
-      camera_z = (frac * frac) * (50 - 15) + 15;
+      Rocket_move_forward(&rocket);
+      rocket.is_slowing = 0;
+    } else {
+      rocket.is_slowing = 1;
     }
 
     if (window.keys.left) {
-      rocket.rotation += 0.1;
-
-      rocket.forward.x = 0.0;
-      rocket.forward.y = 1.0;
-
-      Rocket_rotate(&rocket, rocket.rotation);
+      Rocket_rotate(&rocket, 0.1);
     }
 
     if (window.keys.right) {
-      rocket.rotation -= 0.1;
-
-      rocket.forward.x = 0.0;
-      rocket.forward.y = 1.0;
-
-      Rocket_rotate(&rocket, rocket.rotation);
+      Rocket_rotate(&rocket, -0.1);
     }
 
     if (window.keys.enter) {
       if (!enter_detected) {
-        int index;
-
-        if (rocket.num_bullets < 50) {
-          index = rocket.num_bullets++;
-        } else if (current_bullet_index <= 49 ) {
-          index = current_bullet_index++;
-        } else {
-          index = current_bullet_index = 0;
-        }
-
-        rocket.bullets[index].velocity.x = rocket.forward.x;
-        rocket.bullets[index].velocity.y = rocket.forward.y;
-        rocket.bullets[index].position.x = rocket.position.x + rocket.bullets[index].velocity.x;
-        rocket.bullets[index].position.y = rocket.position.y + rocket.bullets[index].velocity.y;
-
+        Rocket_fire(&rocket);
         enter_detected = 1;
       }
     } else {
       enter_detected = 0;
     }
 
+    { /* update camera height */
+      float current_rocket_speed = vec2_length(&rocket.velocity);
+      float frac = current_rocket_speed / rocket.max_speed;
+      camera_z = (frac * frac) * (50 - 15) + 15;
+    }
+
     gfx_matrix_mode(GFX_VIEW_MATRIX);
     gfx_identity();
     gfx_translate(-rocket.position.x, -rocket.position.y, camera_z);
 
-    { /* render rocket */
-      gfx_matrix_mode(GFX_MODEL_MATRIX);
-      gfx_identity();
-      gfx_translate(rocket.position.x, rocket.position.y, 0);
-      gfx_rotate(0, 0, 1, rocket.rotation);
-      gfx_bind_primitive(GFX_PRIMITIVE_TRIANGLE);
-      gfx_bind_attr(GFX_ATTR_RGB, white_color);
-      gfx_draw_arrays(0, -1);
-    }
-
-    { /* render bullets */
-      for (i = 0; i < rocket.num_bullets; i++) {
-        gfx_matrix_mode(GFX_MODEL_MATRIX);
-        gfx_identity();
-        gfx_translate(rocket.bullets[i].position.x, rocket.bullets[i].position.y, 0);
-        gfx_scale(0.2, 0.2, 0);
-        gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
-        gfx_bind_attr(GFX_ATTR_RGB, white_color);
-        gfx_draw_arrays(0, -1);
-
-        rocket.bullets[i].position.x += (rocket.bullets[i].velocity.x + rocket.velocity.x);
-        rocket.bullets[i].position.y += (rocket.bullets[i].velocity.y + rocket.velocity.y);
-      }
-    }
+    Rocket_render(&rocket);
+    Rocket_update(&rocket);
 
     { /* render background */
       for (i = 0; i < 1000; i++) {
@@ -206,22 +237,12 @@ int main (void) {
       }
     }
 
-    rocket.position.x += rocket.velocity.x;
-    rocket.position.y += rocket.velocity.y;
-
-    if (!window.keys.w) {
-      rocket.velocity.x *= 0.96;
-      rocket.velocity.y *= 0.96;
-    }
-
     frame = SDL_GetTicks() - start;
     sprintf(debug_string, "frame: %dms", frame);
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
 
     window_update(&window, framebuffer);
     gfx_clear();
-
-    rotate_amt += 0.01;
   }
 
   window_close(&window);
