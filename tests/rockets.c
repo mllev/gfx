@@ -28,7 +28,7 @@ float vec2_length(Vec2* v)
 }
 
 /* particle stuff */
-#define PARTICLE_MAX 50
+#define PARTICLE_MAX 500
 
 struct _particles {
   struct {
@@ -54,7 +54,7 @@ void Particles_init(Particles *p)
   }
 }
 
-void Particles_add(Particles *p, Vec2 *position, Vec2 *velocity, Vec2 *scale)
+void Particles_add(Particles *p, Vec2 *position, Vec2 *velocity, Vec2 *scale, float duration)
 {
   int i;
 
@@ -77,8 +77,16 @@ void Particles_add(Particles *p, Vec2 *position, Vec2 *velocity, Vec2 *scale)
   p->data[i].position.x = position->x + p->data[i].velocity.x;
   p->data[i].position.y = position->y + p->data[i].velocity.y;
 
-  p->data[i].duration = 0.2;
+  p->data[i].duration = duration;
 }
+
+typedef struct camera Camera;
+
+struct camera {
+  float max_height;
+  float current_height;
+  float min_height;
+};
 
 void Particles_render(Particles *p, Vec2 *frame)
 {
@@ -152,12 +160,19 @@ void Rocket_move_forward(Rocket *r)
     r->velocity.x -= r->forward.x * r->speed;
     r->velocity.y -= r->forward.y * r->speed;
   }
+
+  { /* rocket trail */
+    Vec2 direction = { 0.0, 0.0 };
+    Vec2 scale = { 0.2, 0.2 };
+
+    Particles_add(&r->flame, &r->position, &direction, &scale, 0.5);
+  }
 }
 
 void Rocket_fire(Rocket *r)
 {
   Vec2 scale = { 0.2, 0.2 };
-  Particles_add(&r->bullets, &r->position, &r->forward, &scale);
+  Particles_add(&r->bullets, &r->position, &r->forward, &scale, 0.5);
 }
 
 void Rocket_update(Rocket *r)
@@ -170,15 +185,6 @@ void Rocket_update(Rocket *r)
   if (r->is_slowing) {
     r->velocity.x *= 0.96;
     r->velocity.y *= 0.96;
-  }
-
-  /* rocket trail */
-  if (r->velocity.x > 0.01 || r->velocity.y > 0.01) {
-    Vec2 direction;
-    Vec2 scale = { 0.2, 0.2 };
-    direction.x = 0.0;
-    direction.y = 0.0;
-    Particles_add(&r->flame, &r->position, &direction, &scale);
   }
 }
 
@@ -208,7 +214,7 @@ void Rocket_init(Rocket *r)
   r->position.x = 0.0;
   r->position.y = 0.0;
 
-  r->max_speed = 5.0;
+  r->max_speed = 10.0;
   r->is_slowing = 0;
   r->speed = 0.1;
   r->rotation = 0.0;
@@ -223,18 +229,17 @@ void init_explosions()
 {
   int i;
 
-  srand(time(NULL));
-
   Particles_init(&Explosions);
 
   for (i = 0; i < 20; i++) {
     Vec2 direction;
     Vec2 scale = { 1, 1 };
     Vec2 position = { 0.0, 0.0 };
+
     direction.x = ((float)rand() / (float)RAND_MAX * 2.0 - 1.0) * 0.1;
     direction.y = ((float)rand() / (float)RAND_MAX * 2.0 - 1.0) * 0.1;
 
-    Particles_add(&Explosions, &position, &direction, &scale);
+    Particles_add(&Explosions, &position, &direction, &scale, (float)rand() / (float)RAND_MAX);
   }
 }
 
@@ -252,7 +257,7 @@ int main (void) {
   float* depthbuffer;
   unsigned int frame, start;
   int i;
-  float camera_z;
+  Camera camera;
   Rocket rocket;
   char debug_string[50];
 
@@ -264,6 +269,8 @@ int main (void) {
   if (!framebuffer) return 1;
 
   window_open(&window, "rockets", width, height);
+
+  srand(time(NULL));
 
   gfx_init();
   gfx_bind_render_target(framebuffer, width, height);
@@ -280,7 +287,9 @@ int main (void) {
 
   Rocket_init(&rocket);
 
-  camera_z = 50;
+  camera.current_height = 0;
+  camera.min_height = 15;
+  camera.max_height = 150;
 
   while (!window.quit) {
     start = SDL_GetTicks();
@@ -313,28 +322,27 @@ int main (void) {
     { /* update camera height */
       float current_rocket_speed = vec2_length(&rocket.velocity);
       float frac = current_rocket_speed / rocket.max_speed;
-      camera_z = (frac * frac) * (50 - 15) + 15;
+      camera.current_height = (frac * frac) * (camera.max_height - camera.min_height) + camera.min_height;
     }
 
     gfx_matrix_mode(GFX_VIEW_MATRIX);
     gfx_identity();
-    gfx_translate(-rocket.position.x, -rocket.position.y, camera_z);
+    gfx_translate(-rocket.position.x, -rocket.position.y, camera.current_height);
 
     Rocket_render(&rocket);
     Rocket_update(&rocket);
 
     render_explosions();
 
-    { /* render background */
-      for (i = 0; i < 1000; i++) {
-        gfx_matrix_mode(GFX_MODEL_MATRIX);
-        gfx_identity();
-        gfx_translate(background[i].x, background[i].y, background[i].z);
-        gfx_scale(5, 5, 0);
-        gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
-        gfx_bind_attr(GFX_ATTR_RGB, red_color);
-        gfx_draw_arrays(0, -1);
-      }
+    /* render background */
+    for (i = 0; i < 1000; i++) {
+      gfx_matrix_mode(GFX_MODEL_MATRIX);
+      gfx_identity();
+      gfx_translate(background[i].x, background[i].y, background[i].z);
+      gfx_scale(5, 5, 0);
+      gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
+      gfx_bind_attr(GFX_ATTR_RGB, red_color);
+      gfx_draw_arrays(0, -1);
     }
 
     frame = SDL_GetTicks() - start;
