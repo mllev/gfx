@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 
 #include "../src/font.h"
 
@@ -12,10 +13,12 @@ float white_color[] = { 1.0, 1.0, 1.0 };
 float red_color[] = { 1.0, 0.0, 0.0 };
 float blue_color[] = { 0.0, 0.0, 1.0 };
 
-/* vector stuff */
 typedef struct _vec2 Vec2;
 typedef struct _vec3 Vec3;
+typedef struct _rocket Rocket;
+typedef struct _particles Particles;
 
+/* vector stuff */
 struct _vec2 { float x, y; };
 struct _vec3 { float x, y, z; };
 
@@ -25,14 +28,14 @@ float vec2_length(Vec2* v)
 }
 
 /* particle stuff */
-#define PARTICLE_MAX 10
-
-typedef struct _particles Particles;
+#define PARTICLE_MAX 50
 
 struct _particles {
   struct {
     Vec2 position;
     Vec2 velocity;
+    Vec2 scale;
+    float duration;
   } data[PARTICLE_MAX];
 
   int count;
@@ -41,38 +44,79 @@ struct _particles {
 
 void Particles_init(Particles *p)
 {
+  int i;
+
   p->count = 0;
   p->start = 0;
+
+  for (i = 0; i < PARTICLE_MAX; i++) {
+    p->data[i].duration = 0.0;
+  }
 }
 
-void Particles_add(Particles *p, Vec2 *position, Vec2 *velocity)
+void Particles_add(Particles *p, Vec2 *position, Vec2 *velocity, Vec2 *scale)
 {
-  int index;
+  int i;
 
-  if (p->count < PARTICLE_MAX) {
-    index = p->count++;
-  } else if (p->start < PARTICLE_MAX ) {
-    index = p->start++;
-  } else {
-    index = p->start = 0;
+  for (i = 0; i < PARTICLE_MAX; i++) {
+    if (p->data[i].duration <= 0) {
+      break;
+    }
   }
 
-  p->data[index].velocity.x = velocity->x;
-  p->data[index].velocity.y = velocity->y;
+  if (i == 50) {
+    return;
+  }
 
-  p->data[index].position.x = position->x + p->data[index].velocity.x;
-  p->data[index].position.y = position->y + p->data[index].velocity.y;
+  p->data[i].scale.x = scale->x;
+  p->data[i].scale.y = scale->y;
+
+  p->data[i].velocity.x = velocity->x;
+  p->data[i].velocity.y = velocity->y;
+
+  p->data[i].position.x = position->x + p->data[i].velocity.x;
+  p->data[i].position.y = position->y + p->data[i].velocity.y;
+
+  p->data[i].duration = 0.2;
+}
+
+void Particles_render(Particles *p, Vec2 *frame)
+{
+  int i;
+
+  for (i = 0; i < PARTICLE_MAX; i++) {
+    if (p->data[i].duration <= 0) {
+      continue;
+    }
+
+    gfx_matrix_mode(GFX_MODEL_MATRIX);
+    gfx_identity();
+    gfx_translate(p->data[i].position.x, p->data[i].position.y, 0);
+    gfx_scale(p->data[i].scale.x, p->data[i].scale.y, 0);
+    gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
+    gfx_bind_attr(GFX_ATTR_RGB, white_color);
+    gfx_draw_arrays(0, -1);
+
+    if (frame) {
+      p->data[i].position.x += (p->data[i].velocity.x + frame->x);
+      p->data[i].position.y += (p->data[i].velocity.y + frame->y);
+    } else {
+      p->data[i].position.x += (p->data[i].velocity.x);
+      p->data[i].position.y += (p->data[i].velocity.y);
+    }
+
+    p->data[i].duration -= 0.01;
+  }
 }
 
 /* rocket stuff */
-typedef struct _rocket Rocket;
-
 struct _rocket {
   Vec2 position;
   Vec2 forward;
   Vec2 velocity;
 
   Particles bullets;
+  Particles flame;
 
   int is_slowing;
 
@@ -112,11 +156,14 @@ void Rocket_move_forward(Rocket *r)
 
 void Rocket_fire(Rocket *r)
 {
-  Particles_add(&r->bullets, &r->position, &r->forward);
+  Vec2 scale = { 0.2, 0.2 };
+  Particles_add(&r->bullets, &r->position, &r->forward, &scale);
 }
 
 void Rocket_update(Rocket *r)
 {
+  int i;
+
   r->position.x += r->velocity.x;
   r->position.y += r->velocity.y;
 
@@ -124,12 +171,19 @@ void Rocket_update(Rocket *r)
     r->velocity.x *= 0.96;
     r->velocity.y *= 0.96;
   }
+
+  /* rocket trail */
+  if (r->velocity.x > 0.01 || r->velocity.y > 0.01) {
+    Vec2 direction;
+    Vec2 scale = { 0.2, 0.2 };
+    direction.x = 0.0;
+    direction.y = 0.0;
+    Particles_add(&r->flame, &r->position, &direction, &scale);
+  }
 }
 
 void Rocket_render(Rocket *r)
 {
-  int i;
-
   gfx_matrix_mode(GFX_MODEL_MATRIX);
   gfx_identity();
   gfx_translate(r->position.x, r->position.y, 0);
@@ -138,18 +192,9 @@ void Rocket_render(Rocket *r)
   gfx_bind_attr(GFX_ATTR_RGB, white_color);
   gfx_draw_arrays(0, -1);
 
-  for (i = 0; i < r->bullets.count; i++) {
-    gfx_matrix_mode(GFX_MODEL_MATRIX);
-    gfx_identity();
-    gfx_translate(r->bullets.data[i].position.x, r->bullets.data[i].position.y, 0);
-    gfx_scale(0.2, 0.2, 0);
-    gfx_bind_primitive(GFX_PRIMITIVE_QUAD);
-    gfx_bind_attr(GFX_ATTR_RGB, white_color);
-    gfx_draw_arrays(0, -1);
-
-    r->bullets.data[i].position.x += (r->bullets.data[i].velocity.x + r->velocity.x);
-    r->bullets.data[i].position.y += (r->bullets.data[i].velocity.y + r->velocity.y);
-  }
+  /* clean: bullets require the ships current velocity */
+  Particles_render(&r->bullets, &r->velocity);
+  Particles_render(&r->flame, NULL);
 }
 
 void Rocket_init(Rocket *r)
@@ -169,6 +214,33 @@ void Rocket_init(Rocket *r)
   r->rotation = 0.0;
 
   Particles_init(&r->bullets);
+  Particles_init(&r->flame);
+}
+
+Particles Explosions;
+
+void init_explosions()
+{
+  int i;
+
+  srand(time(NULL));
+
+  Particles_init(&Explosions);
+
+  for (i = 0; i < 20; i++) {
+    Vec2 direction;
+    Vec2 scale = { 1, 1 };
+    Vec2 position = { 0.0, 0.0 };
+    direction.x = ((float)rand() / (float)RAND_MAX * 2.0 - 1.0) * 0.1;
+    direction.y = ((float)rand() / (float)RAND_MAX * 2.0 - 1.0) * 0.1;
+
+    Particles_add(&Explosions, &position, &direction, &scale);
+  }
+}
+
+void render_explosions()
+{
+  Particles_render(&Explosions, NULL);
 }
 
 Vec3 background[1000];
@@ -197,6 +269,8 @@ int main (void) {
   gfx_bind_render_target(framebuffer, width, height);
   gfx_bind_depth_buffer(depthbuffer);
   gfx_set_projection(70, (float)width / (float)height, 1);
+
+  init_explosions();
 
   for (i = 0; i < 1000; i++) {
     background[i].x = (float)(rand() % 500);
@@ -248,6 +322,8 @@ int main (void) {
 
     Rocket_render(&rocket);
     Rocket_update(&rocket);
+
+    render_explosions();
 
     { /* render background */
       for (i = 0; i < 1000; i++) {
