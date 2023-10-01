@@ -294,6 +294,8 @@ int main (void) {
   while (!window.quit) {
     start = SDL_GetTicks();
 
+    window_poll(&window);
+
     /* event handling */
     if (window.keys.w) {
       Rocket_move_forward(&rocket);
