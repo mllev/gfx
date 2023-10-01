@@ -35,18 +35,18 @@ float cube_colors[] = {
 };
 
 float cube_uvs[] = {
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 1.0, 1.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 1.0, 1.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 1.0, 1.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 1.0, 1.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 1.0, 1.0, 1.0, 1.0, 0.0,
-  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-  0.0, 1.0, 1.0, 1.0, 1.0, 0.0
+  0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 0.0, 0.0, 0.0
 };
 
 void draw_cube (float rotate_amt, float x, float y, float z, unsigned int *texture)
@@ -86,7 +86,7 @@ unsigned int* load_texture (const char *file)
   bmpread_t bmp1;
   unsigned int *texture;
   if (bmpread(file, 0, &bmp1)) {
-    texture = malloc(sizeof(unsigned int) * bmp1.width * bmp1.height);
+    texture = (unsigned int *)malloc(sizeof(unsigned int) * bmp1.width * bmp1.height);
     for (x = 0; x < w; x++) {
       for (y = 0; y < h; y++) {
         int idx = w * y + x;
@@ -94,7 +94,7 @@ unsigned int* load_texture (const char *file)
         int g = bmp1.rgb_data[idx*3+1];
         int b = bmp1.rgb_data[idx*3+2];
 
-        texture[idx] = (255 << 24) | (r << 16) | (g << 8) | b;
+        texture[idx] = ((unsigned int)255 << 24) | (r << 16) | (g << 8) | b;
       }
     }
     return texture;
@@ -120,8 +120,7 @@ int main (int argc, char **argv)
   int i;
   float cam_speed = 20;
 
-  /* please figure out why relative paths don't work */
-  unsigned int* texture = load_texture("/Users/matthewlevenstein/Desktop/projects/gfx/textures/wood.bmp");
+  unsigned int* texture = load_texture("./textures/wood.bmp");
 
   srand(time(NULL));
 
@@ -135,6 +134,9 @@ int main (int argc, char **argv)
   zbuf = (float *)malloc((width * height) * sizeof(float));
 
   if (!buf || !zbuf) return 1;
+
+  memset(buf, 0, (width * height) * sizeof(unsigned int));
+  memset(zbuf, 0, (width * height) * sizeof(float));
 
   window_open(&window, "GFX", width, height);
 
@@ -151,6 +153,8 @@ int main (int argc, char **argv)
     gfx_matrix_mode(GFX_VIEW_MATRIX);
 
     start = SDL_GetTicks();
+
+    window_poll(&window);
 
     if (window.keys.a) gfx_translate(cam_speed, 0, 0);
     if (window.keys.d) gfx_translate(-cam_speed, 0, 0);
@@ -180,7 +184,7 @@ int main (int argc, char **argv)
 
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
 
-    window_update(&window, buf);
+    window_render(&window, buf);
 
     gfx_clear();
 

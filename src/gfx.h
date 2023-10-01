@@ -10,7 +10,7 @@ causes a bug where a line connects to the previously drawn mesh in wireframe mod
 
 */
 
-#include <math.h> /* sinf cosf fabs */
+#include <math.h> /* sin cos fabs */
 
 typedef unsigned int u32;
 
@@ -186,7 +186,7 @@ void gfx_bind_attr(int, float*);
 void gfx_bind_texture(u32*, int, int);
 
 int gfx_draw_arrays(int, int);
-void gfx_draw_text_8x8(char[][8], const char *, int, int, int);
+void gfx_draw_text_8x8(unsigned char[][8], const char *, int, int, int);
 void gfx_draw_line(float, float, float, float, u32);
 
 void gfx_draw_mode(int);
@@ -294,8 +294,8 @@ static void gfx_project_to_screen (gfxvert* vert)
 
 static void gfx_m4_rotation (gfxm4 *m, float x, float y, float z, float a)
 {
-  float s = sinf(a);
-  float c = cosf(a);
+  float s = sin(a);
+  float c = cos(a);
 
   float c1 = 1 - c;
 
@@ -327,7 +327,7 @@ static void gfx_m4_translation (gfxm4 *m, float x, float y, float z)
 
 static void gfx_m4_perspective (gfxm4 *m, float fov, float ar, float nearz, float farz)
 {
-  float f = 1.0 / tanf(fov / 2);
+  float f = 1.0 / tan(fov / 2);
   float range = nearz - farz;
 
   m->_00 = f / ar;
@@ -642,7 +642,7 @@ void gfx_set_projection (float fov, float ar, float np)
   float f = (fov * GFX_PI) / 180.0f;
 
   GFX.near_plane = np;
-  GFX.y_scale = 1.0 / tanf(f / 2);
+  GFX.y_scale = 1.0 / tan(f / 2);
   GFX.x_scale = GFX.y_scale / ar;
 }
 
@@ -726,7 +726,7 @@ static u32 gfx_pixel_brightness (u32 in, float brightness)
   int g = (int)((float)((in & 0x00ff00) >> 8) * brightness);
   int b = (int)((float)((in & 0x0000ff)) * brightness);
 
-  return 255 << 24 | r << 16 | g << 8 | b;
+  return (u32)255 << 24 | r << 16 | g << 8 | b;
 }
 
 static void gfx_draw_span_textured (gfxedge *e1, gfxedge *e2, int y, float brightness)
@@ -1106,7 +1106,7 @@ int gfx_draw_arrays (int start, int end)
   return 1;
 }
 
-void gfx_draw_text_8x8 (char font[][8], const char *str, int length, int offx, int offy)
+void gfx_draw_text_8x8 (unsigned char font[][8], const char *str, int length, int offx, int offy)
 {
   int i, y, x, l, min = 0, max = length;
   unsigned int c;

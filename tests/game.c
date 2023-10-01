@@ -483,6 +483,7 @@ int main (void) {
 
   while (!window.quit) {
     start = SDL_GetTicks();
+    window_poll(&window);
 
     if (window.keys.w) {
       STATE.camera.z += STATE.camera.speed;
@@ -536,7 +537,7 @@ int main (void) {
     sprintf(debug_string, "frame: %dms", frame);
 
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
-    window_update(&window, buf);
+    window_render(&window, buf);
     gfx_clear();
   }
 

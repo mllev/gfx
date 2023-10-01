@@ -134,6 +134,8 @@ int main (int argc, char **argv)
 
     start = SDL_GetTicks();
 
+    window_poll(&window);
+
     if (window.keys.a) gfx_translate(cam_speed, 0, 0);
     if (window.keys.d) gfx_translate(-cam_speed, 0, 0);
     if (window.keys.w) gfx_translate(0, 0, -cam_speed);
@@ -165,7 +167,7 @@ int main (int argc, char **argv)
     sprintf(debug_string, "fov: %f", fov);
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 10);
 
-    window_update(&window, buf);
+    window_render(&window, buf);
 
     gfx_clear();
   }

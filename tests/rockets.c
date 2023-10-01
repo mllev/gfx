@@ -349,7 +349,7 @@ int main (void) {
     sprintf(debug_string, "frame: %dms", frame);
     gfx_draw_text_8x8(ascii, debug_string, strlen(debug_string), 0, 0);
 
-    window_update(&window, framebuffer);
+    window_render(&window, framebuffer);
     gfx_clear();
   }
 

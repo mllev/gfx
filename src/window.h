@@ -7,7 +7,8 @@
 typedef struct _window window_t;
 
 void window_open(window_t*, const char*, int, int);
-void window_update(window_t*, unsigned*);
+void window_render(window_t*, unsigned*);
+void window_poll(window_t*);
 void window_close(window_t*);
 
 struct _window {
@@ -57,15 +58,9 @@ void window_open (window_t *w, const char *name, int width, int height)
   w->target_height = height;
 }
 
-void window_update (window_t *w, unsigned *buf)
+void window_poll (window_t *w)
 {
   int down = 1;
-  SDL_Delay(10);
-  SDL_UpdateTexture(w->texture, NULL, buf, w->target_width * sizeof(unsigned));
-  SDL_RenderClear(w->renderer);
-  SDL_RenderCopy(w->renderer, w->texture, NULL, NULL);
-  SDL_RenderPresent(w->renderer);
-
   while (SDL_PollEvent(&(w->event))) {
     switch (w->event.type) {
       case SDL_QUIT:
@@ -95,6 +90,15 @@ void window_update (window_t *w, unsigned *buf)
       default: break;
     }
   }
+}
+
+void window_render (window_t *w, unsigned *buf)
+{
+  SDL_Delay(10);
+  SDL_UpdateTexture(w->texture, NULL, buf, w->target_width * sizeof(unsigned));
+  SDL_RenderClear(w->renderer);
+  SDL_RenderCopy(w->renderer, w->texture, NULL, NULL);
+  SDL_RenderPresent(w->renderer);
 }
 
 void window_close (window_t *w)
