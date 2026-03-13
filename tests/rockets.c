@@ -192,15 +192,15 @@ void Rocket_render(Rocket *r)
 {
   gfx_matrix_mode(GFX_MODEL_MATRIX);
   gfx_identity();
-  gfx_translate(r->position.x, r->position.y, 0);
+  gfx_translate(r->position.x, r->position.y, 1);
   gfx_rotate(0, 0, 1, r->rotation);
   gfx_bind_primitive(GFX_PRIMITIVE_TRIANGLE);
   gfx_bind_attr(GFX_ATTR_RGB, white_color);
   gfx_draw_arrays(0, -1);
 
   /* clean: bullets require the ships current velocity */
-  Particles_render(&r->bullets, &r->velocity);
-  Particles_render(&r->flame, NULL);
+  // Particles_render(&r->bullets, &r->velocity);
+  // Particles_render(&r->flame, NULL);
 }
 
 void Rocket_init(Rocket *r)

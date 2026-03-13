@@ -17,7 +17,7 @@ game:
 	gcc tests/game.c $(LEVEL) $(WARNS) $(PLATFORM) -o prog && ./prog
 
 rockets:
-	gcc tests/rockets.c $(LEVEL) $(WARNS) $(PLATFORM) -o prog && ./prog
+	gcc tests/rockets.c -fsanitize=undefined $(LEVEL) $(WARNS) $(PLATFORM) -o prog && ./prog
 
 debug:
 	gcc tests/boxes.c -O0 $(WARNS) $(PLATFORM) -g -o prog && gdb prog

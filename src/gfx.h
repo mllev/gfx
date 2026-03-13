@@ -565,7 +565,7 @@ void gfx_bind_primitive (unsigned char ptype)
     gfx_bind_arrays(gfx_quad_vertices, 4, gfx_quad_indices, 2);
     break;
   case GFX_PRIMITIVE_TRIANGLE:
-    gfx_bind_arrays(gfx_triangle_vertices, 3, gfx_triangle_indices, 3);
+    gfx_bind_arrays(gfx_triangle_vertices, 3, gfx_triangle_indices, 1);
     break;
   default:
     break;
@@ -881,7 +881,7 @@ void gfx_draw_triangle (gfxpoly *tri)
   float area;
   float z1, z2, z3, tv;
   unsigned int color;
-  int r, g, b;
+  unsigned int r, g, b;
   float u1, v1, u2, v2, u3, v3;
   int i1, i2, i3;
 
@@ -908,7 +908,7 @@ void gfx_draw_triangle (gfxpoly *tri)
     r = (int)(tri->r * tri->brightness * 255) << 16;
     g = (int)(tri->g * tri->brightness * 255) <<  8;
     b = (int)(tri->b * tri->brightness * 255) <<  0;
-    color = (255 << 24) | r | g | b;
+    color = ((unsigned int)255 << 24) | r | g | b;
     u1 = v1 = u2 = v2 = u3 = v3 = 0;
   }
 
@@ -991,7 +991,7 @@ int gfx_draw_arrays (int start, int end)
   float brightness;
 
   vsize = GFX.vertex_count * 3;
-  isize = end == -1 ? GFX.index_count * 3 : (end + 1) * 3;
+  isize = end == -1 ? (GFX.index_count * 3) : ((end + 1) * 3);
 
   vidx = 0;
   pidx = 0;
